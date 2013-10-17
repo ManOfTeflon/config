@@ -117,16 +117,6 @@ bind '"\e[B": history-search-forward'
 
 xmodmap -e 'clear Lock' -e 'keycode 0x42 = Escape'
 
-export PATH_TO_MEMSQL=~/Projects/memsql
-export CXX="ccache $PATH_TO_MEMSQL/objdir/usr/local/bin/memsql-g++ -std=c++0x -isystem $PATH_TO_MEMSQL/objdir/usr/include -L$PATH_TO_MEMSQL/objdir/usr/local/lib64 -I/usr/include"
-export LD_LIBRARY_PATH="$PATH_TO_MEMSQL/objdir/usr/local/lib64:$LD_LIBRARY_PATH"
-export PYTHONPATH=$PATH_TO_MEMSQL/py:$PYTHONPATH
-export PATH=~/arcanist/bin:$PATH
-export PATH=~/psyduck/bin:$PATH
-export PATH=~/.scripts:$PATH
-
 export EDITOR=vim
 
-alias binplace='(cd $PATH_TO_MEMSQL; ./binplace -sn)'
-alias memsqld='$PATH_TO_MEMSQL/sql/mysqld'
-alias memsql='mysql -h 127.1 -u root --prompt="memsql> "'
+source .memsql
