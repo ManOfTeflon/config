@@ -53,6 +53,7 @@ if [ -n "$force_color_prompt" ]; then
     fi
 fi
 
+source /usr/share/git/completion/git-prompt.sh
 GIT_PS1_SHOWDIRTYSTATE=true
 GIT_PS1_SHOWSTASHSTATE=true
 
