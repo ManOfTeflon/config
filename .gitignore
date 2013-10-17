@@ -1,0 +1,9 @@
+/*
+/*/
+!/.bashrc
+!/.gitignore
+!/.vim/
+!/.vimrc
+/.vim/bundle/
+/.vim/sessions/
+!/.xmonad/
