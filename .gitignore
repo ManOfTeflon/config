@@ -6,6 +6,8 @@
 !/.vimrc
 /.vim/bundle/
 /.vim/sessions/
-!/.xmonad/
+!/.xmonad
+/.xmonad/*
+!/.xmonad/xmonad.hs
 !/.xmobarrc
 !/.Xresources
