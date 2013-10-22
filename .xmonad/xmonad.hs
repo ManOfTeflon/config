@@ -16,6 +16,7 @@ main = do
       terminal           = "urxvt",
       normalBorderColor  = "#000000",
       focusedBorderColor = "#ffcc00",
+      focusFollowsMouse  = False,
       manageHook = manageDocks <+> manageHook defaultConfig,
       layoutHook = avoidStruts  $  layoutHook defaultConfig,
       logHook = dynamicLogWithPP xmobarPP {
