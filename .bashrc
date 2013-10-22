@@ -53,7 +53,9 @@ if [ -n "$force_color_prompt" ]; then
     fi
 fi
 
-source /usr/share/git/completion/git-prompt.sh
+if [ -f /usr/share/git/completion/git-prompt.sh ] && ! shopt -oq posix; then
+    source /usr/share/git/completion/git-prompt.sh
+fi
 GIT_PS1_SHOWDIRTYSTATE=true
 GIT_PS1_SHOWSTASHSTATE=true
 
@@ -120,4 +122,5 @@ xmodmap -e 'clear Lock' -e 'keycode 0x42 = Escape'
 
 export EDITOR=vim
 
-source .memsql
+export PATH=~/.scripts:$PATH
+source ~/.memsql
