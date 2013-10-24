@@ -3,36 +3,31 @@ import XMonad.Hooks.DynamicLog
 import XMonad.Hooks.ManageDocks
 import XMonad.Util.Run(spawnPipe)
 import XMonad.Util.EZConfig(additionalKeys)
--- import XMonad.Actions.GridSelect
--- import XMonad.Layout.WindowNavigation
 import XMonad.Actions.Navigation2D
+import XMonad.Hooks.FadeInactive
+import XMonad.Layout.Spacing
 import System.IO
+
+myLogHook :: X ()
+myLogHook = fadeInactiveLogHook fadeAmount
+    where fadeAmount = 0.7
 
 main = do
   xmproc <- spawnPipe "/usr/bin/xmobar ~/.xmobarrc"
   xmonad $ withNavigation2DConfig defaultNavigation2DConfig
          $ defaultConfig
-    { borderWidth        = 3,
+    { borderWidth        = 0,
       terminal           = "urxvt",
       normalBorderColor  = "#000000",
       focusedBorderColor = "#ffcc00",
       focusFollowsMouse  = False,
       manageHook = manageDocks <+> manageHook defaultConfig,
-      layoutHook = avoidStruts  $  layoutHook defaultConfig,
+      layoutHook = avoidStruts  . smartSpacing 5 $ layoutHook defaultConfig,
       logHook = dynamicLogWithPP xmobarPP {
         ppOutput = hPutStrLn xmproc,
         ppTitle = xmobarColor "green" "" . shorten 50
-      }
+      } >> myLogHook
     } `additionalKeys` [
---      ((mod1Mask, xK_g), goToSelected defaultGSConfig)
---      ((mod1Mask, xK_h), sendMessage $ Go L),
---      ((mod1Mask, xK_l), sendMessage $ Go R),
---      ((mod1Mask, xK_k), sendMessage $ Go U),
---      ((mod1Mask, xK_j), sendMessage $ Go D),
---      ((mod1Mask .|. controlMask, xK_h), sendMessage $ Swap L),
---      ((mod1Mask .|. controlMask, xK_l), sendMessage $ Swap R),
---      ((mod1Mask .|. controlMask, xK_k), sendMessage $ Swap U),
---      ((mod1Mask .|. controlMask, xK_j), sendMessage $ Swap D),
         ((mod1Mask,                 xK_Page_Down), sendMessage Shrink),
         ((mod1Mask,                 xK_Page_Up), sendMessage Expand),
 
