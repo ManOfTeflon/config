@@ -10,19 +10,19 @@ import System.IO
 
 myLogHook :: X ()
 myLogHook = fadeInactiveLogHook fadeAmount
-    where fadeAmount = 0.7
+    where fadeAmount = 0.85
 
 main = do
   xmproc <- spawnPipe "/usr/bin/xmobar ~/.xmobarrc"
   xmonad $ withNavigation2DConfig defaultNavigation2DConfig
          $ defaultConfig
-    { borderWidth        = 0,
+    { borderWidth        = 1,
       terminal           = "urxvt",
       normalBorderColor  = "#000000",
-      focusedBorderColor = "#ffcc00",
+      focusedBorderColor = "#9900cc",
       focusFollowsMouse  = False,
       manageHook = manageDocks <+> manageHook defaultConfig,
-      layoutHook = avoidStruts  . smartSpacing 5 $ layoutHook defaultConfig,
+      layoutHook = avoidStruts $ layoutHook defaultConfig,
       logHook = dynamicLogWithPP xmobarPP {
         ppOutput = hPutStrLn xmproc,
         ppTitle = xmobarColor "green" "" . shorten 50

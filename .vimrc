@@ -30,6 +30,25 @@ Bundle 'tpope/vim-fugitive'
 Bundle 'xolox/vim-misc'
 
 Bundle 'xolox/vim-session'
+
+Bundle 'EasyMotion'
+
+Bundle 'L9'
+Bundle 'FuzzyFinder'
+Bundle 'SkidanovAlex/CtrlK'
+
+Bundle 'airblade/vim-rooter'
+
+nmap z H<Leader><Leader>f
+
+let g:ctrlk_clang_library_path="/usr/lib/llvm-3.3/lib"
+nmap <F3> :call GetCtrlKState()<CR>
+nmap q :call CtrlKNavigateSymbols()<CR>
+nmap <C-q> :call CtrlKGoToDefinition()<CR>
+nmap <C-S-q> :call CtrlKGetReferences()<CR>
+
+colorscheme elflord
+
 let g:session_default_to_last=1
 let g:session_autoload="yes"
 let g:session_autosave_periodic=1
@@ -184,7 +203,6 @@ au CursorMoved * call HighlightCursor()
 au InsertLeave * call HighlightCursor()
 au InsertEnter * match Cursor //
 
-nnoremap <leader>cd :lcd %:p:h<cr>:pwd<cr>
 let default_path = escape(&path, '\ ') " store default value of 'path'
 
 " Always add the current file's directory to the path and tags list if not
@@ -204,6 +222,7 @@ set foldlevel=1         "this is just what i use
 set foldcolumn=0
 hi Folded guibg=DarkGrey ctermbg=DarkGrey guifg=Red ctermfg=Red
 hi FoldColumn guibg=Black ctermbg=Black guifg=White ctermfg=White
+hi Search guibg=LightBlue ctermbg=LightBlue guifg=Black ctermfg=Black
 
 " Tex-Live grep fix
 set grepprg=grep\ -nH\ $*
@@ -211,21 +230,6 @@ set grepprg=grep\ -nH\ $*
 "LaTeX
 "auto recompile upon save
 autocmd BufWritePost *.tex !pdflatex <afile>
-
-"TODO: DELETE THIS SHIT WHEN I GET SOMETHING BETTER!!!!
-function! FindDeclaration(i)
-    echo system("git grep -E '\\b(class|struct)\\s+" . a:i . "\\b' --")
-endfunction
-
-function! FindMacro(i)
-    echo system("git grep -E '^#define\\s+" . a:i . "\\b' --")
-endfunction
-
-comm! -nargs=1 Dec call FindDeclaration(<args>)
-nnoremap  <F2> :Dec(expand("<cword>"))<CR>
-comm! -nargs=1 Mac call FindMacro(<args>)
-nnoremap  <F3> :Mac(expand("<cword>"))<CR>
-"TO HERE
 
 "Fun functions for playing with splits
 function! HOpen(dir,what_to_open)
