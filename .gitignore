@@ -4,7 +4,7 @@
 !/.gitignore
 !/.vim/
 !/.vimrc
-!/.xinitrc
+!/.xinitrc.xmonad
 /.vim/bundle/
 /.vim/sessions/
 !/.xmonad
