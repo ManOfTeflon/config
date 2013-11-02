@@ -53,7 +53,9 @@ if [ -n "$force_color_prompt" ]; then
     fi
 fi
 
-source /usr/share/git/completion/git-prompt.sh
+if [ -f /usr/share/git/completion/git-prompt.sh ] && ! shopt -oq posix; then
+    source /usr/share/git/completion/git-prompt.sh
+fi
 GIT_PS1_SHOWDIRTYSTATE=true
 GIT_PS1_SHOWSTASHSTATE=true
 
@@ -118,4 +120,19 @@ bind '"\e[B": history-search-forward'
 
 export EDITOR=vim
 
-source .memsql
+export PATH=~/.scripts:$PATH
+
+function killdetached () {
+    for session in $(screen -ls | grep -o '[0-9]\{4\}'); do
+        screen -S "${session}" -X quit
+    done   
+}
+function waitforport () {
+    echo "Waiting for port $1""..."
+    until nc -vz localhost $1; do true; done &>/dev/null
+}
+alias playground="cat | sed '1i#include <stdio.h>\\n#include <malloc.h>\\n#include <string.h>\\nint main() { ' | sed '$ a}' | tcc -run -"
+
+source ~/.localrc
+
+xrdb ~/.Xresources
