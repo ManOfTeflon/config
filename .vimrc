@@ -21,6 +21,11 @@ filetype off
 " directory
 set directory=/home/mandrews/.vim
 
+" leader key to ,
+let mapleader=","
+
+set sessionoptions=curdir,winpos,resize,help,blank,winsize,folds,tabpages
+
 set rtp+=~/.vim/bundle/vundle/
 call vundle#rc()
 
@@ -44,8 +49,8 @@ nmap z H<Leader><Leader>f
 let g:ctrlk_clang_library_path="/usr/lib/llvm-3.3/lib"
 nmap <F3> :call GetCtrlKState()<CR>
 nmap q :call CtrlKNavigateSymbols()<CR>
-nmap <C-q> :call CtrlKGoToDefinition()<CR>
-nmap <C-S-q> :call CtrlKGetReferences()<CR>
+nmap <S-q> :call CtrlKGoToDefinition()<CR>
+nmap ` :call CtrlKGetReferences()<CR>
 
 colorscheme elflord
 
@@ -117,9 +122,6 @@ cmap w!! %!sudo tee > /dev/null %
 
 " auto indent
 filetype plugin indent on
-
-" leader key to ,
-let mapleader=","
 
 " maintain more context around cursor
 set scrolloff=100
