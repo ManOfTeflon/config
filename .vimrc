@@ -24,7 +24,7 @@ set directory=/home/mandrews/.vim
 " leader key to ,
 let mapleader=","
 
-set sessionoptions=curdir,winpos,resize,help,blank,winsize,folds,tabpages
+set sessionoptions=curdir,help,blank,folds,tabpages
 
 set rtp+=~/.vim/bundle/vundle/
 call vundle#rc()
@@ -43,16 +43,28 @@ Bundle 'FuzzyFinder'
 Bundle 'SkidanovAlex/CtrlK'
 
 Bundle 'airblade/vim-rooter'
+Bundle 'ton/vim-bufsurf'
 
-nmap z H<Leader><Leader>f
+nnoremap L :BufSurfForward<cr>
+nnoremap H :BufSurfBack<cr>
+nnoremap <F4> :BufSurfList<cr>
+nnoremap _ H
+nmap z <Leader><Leader>f
+nmap Z <Leader><Leader>F
 
 let g:ctrlk_clang_library_path="/usr/lib/llvm-3.3/lib"
-nmap <F3> :call GetCtrlKState()<CR>
-nmap q :call CtrlKNavigateSymbols()<CR>
-nmap <S-q> :call CtrlKGoToDefinition()<CR>
-nmap ` :call CtrlKGetReferences()<CR>
+nnoremap <F3> :call GetCtrlKState()<CR>
+nnoremap <F2> :call CtrlKNavigateSymbols()<CR>
+nnoremap ` :call CtrlKGoToDefinition()<CR>
+nnoremap ~ :call CtrlKGetReferences()<CR>
 
-colorscheme elflord
+nnoremap <space> @q
+
+nmap & *:!git grep \\b<cword>\\b<cr>
+nmap * *N
+
+"colorscheme elflord
+exec "colorscheme " . ['elflord'][localtime() % 1]
 
 let g:session_default_to_last=1
 let g:session_autoload="yes"
@@ -129,8 +141,9 @@ set scrolloff=100
 " Quickly edit/reload the vimrc file
 nmap <silent> <leader>ev :e $MYVIMRC<CR>
 nmap <silent> <leader>sv :so $MYVIMRC<CR>
-nnoremap <leader>w :wa<CR>
-nnoremap <leader>q :xa<CR>
+
+nnoremap <leader>w :SaveSession<CR>:wa<CR>
+nnoremap <leader>q :SaveSession<CR>:xa<CR>
 
 " VERY useful remap
 nnoremap ; :
@@ -285,7 +298,33 @@ nnoremap <c-p>j :call HPasteWindow('down')<cr>
 nnoremap <c-p>h :call HPasteWindow('left')<cr>
 nnoremap <c-p>l :call HPasteWindow('right')<cr>
 nnoremap <c-p>p :call HPasteWindow('here')<cr>
-nmap <leader><c-k> <c-y><c-k><c-p>p<c-j><c-p>p<c-k>
-nmap <leader><c-j> <c-y><c-j><c-p>p<c-k><c-p>p<c-j>
-nmap <leader><c-h> <c-y><c-h><c-p>p<c-l><c-p>p<c-h>
-nmap <leader><c-l> <c-y><c-l><c-p>p<c-h><c-p>p<c-l>
+
+let g:extension_cycle = ['.c', '.cc', '.cpp', '.h', '.hpp', '.ipp', '']
+function! CycleExtension()
+    let filename = expand('%:p')
+    let i=0
+    for extension in g:extension_cycle
+        let matches = matchlist(filename, '\(.*\)\' . extension . '$')
+        if !empty(matches)
+            break
+        endif
+        let i = i + 1
+    endfor
+    if empty(matches)
+        return
+    endif
+    let prefix = matches[1]
+    let j = i + 1
+    while j != i
+        let j = j % len(g:extension_cycle)
+        let newfile = prefix . g:extension_cycle[j]
+        if filereadable(newfile)
+            echo 'found: ' . newfile
+            exec 'edit ' . newfile
+            return
+        endif
+        let j = j + 1
+    endwhile
+endfunction
+
+nmap <tab> :call CycleExtension()<cr>

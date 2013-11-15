@@ -62,6 +62,11 @@ main = do
         ((controlMask .|. shiftMask,    xK_l    ), windowToScreen R False),
         ((controlMask .|. shiftMask,    xK_h    ), windowToScreen L False),
         ((controlMask .|. shiftMask,    xK_k    ), windowToScreen U False),
-        ((controlMask .|. shiftMask,    xK_j    ), windowToScreen D False)
+        ((controlMask .|. shiftMask,    xK_j    ), windowToScreen D False),
+
+        -- Audio control
+        ((0, 0x1008ff11), spawn "amixer set Headphone 5-"),
+        ((0, 0x1008ff13), spawn "amixer set Headphone 5+"),
+        ((0, 0x1008ff12), spawn "amixer set Headphone toggle set Master toggle")
 
     ]
