@@ -45,12 +45,14 @@ Bundle 'SkidanovAlex/CtrlK'
 Bundle 'airblade/vim-rooter'
 Bundle 'ton/vim-bufsurf'
 
+Bundle 'bling/vim-airline'
+
 nnoremap L :BufSurfForward<cr>
 nnoremap H :BufSurfBack<cr>
 nnoremap <F4> :BufSurfList<cr>
 nnoremap _ H
-nmap z <Leader><Leader>f
-nmap Z <Leader><Leader>F
+nmap f <Leader><Leader>f
+nmap F <Leader><Leader>F
 
 let g:ctrlk_clang_library_path="/usr/lib/llvm-3.3/lib"
 nnoremap <F3> :call GetCtrlKState()<CR>
@@ -106,8 +108,8 @@ set showcmd
 set ruler
 
 " status bar
-set statusline=\ \%f%m%r%h%w\ ::\ %y\ [%{&ff}]\%=\ [%p%%:\ %l/%L:%c]\
-set laststatus=2
+" set statusline=\ \%f%m%r%h%w\ ::\ %y\ [%{&ff}]\%=\ [%p%%:\ %l/%L:%c]\
+" set laststatus=2
 set cmdheight=1
 
 " formatting options
@@ -149,6 +151,8 @@ nnoremap <leader>q :SaveSession<CR>:xa<CR>
 nnoremap ; :
 nnoremap j gj
 nnoremap k gk
+vnoremap j gj
+vnoremap k gk
 vmap w wh
 vmap r "_dP
 set clipboard+=unnamed
