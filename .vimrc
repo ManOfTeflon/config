@@ -62,7 +62,7 @@ nnoremap ~ :call CtrlKGetReferences()<CR>
 
 nnoremap <space> @q
 
-nmap & *:!git grep \\b<cword>\\b<cr>
+nmap & *:!git grep -n \\b<cword>\\b<cr>
 nmap * *N
 
 "colorscheme elflord
