@@ -134,4 +134,4 @@ alias ns='netstat -lnutp'
 
 source ~/.localrc
 
-xrdb ~/.Xresources
+xrdb ~/.Xresources 2>/dev/null
