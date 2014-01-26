@@ -2,12 +2,12 @@ xrdb -merge ~/.Xresources
 
 xmodmap -e 'clear Lock' -e 'keycode 0x42 = Escape'
 
-xcompmgr &
+compton --config ~/.compton.conf -b
 
 xsetroot -solid midnightblue
 xsetroot -cursor_name left_ptr
 
-source ~/.fehbg
+(sleep 3 && source ~/.fehbg) &
 
 unclutter -idle 5 &
 

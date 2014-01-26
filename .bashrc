@@ -25,8 +25,7 @@ shopt -s checkwinsize
 #shopt -s globstar
 
 # make less more friendly for non-text input files, see lesspipe(1)
-[ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
-
+[ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)" 
 # set variable identifying the chroot you work in (used in the prompt below)
 if [ -z "$debian_chroot" ] && [ -r /etc/debian_chroot ]; then
     debian_chroot=$(cat /etc/debian_chroot)
@@ -60,10 +59,10 @@ GIT_PS1_SHOWDIRTYSTATE=true
 GIT_PS1_SHOWSTASHSTATE=true
 
 if [ "$color_prompt" = yes ]; then
-    PS1='\[\e[0;32m\]\u\[\e[m\] \[\e[1;34m\]\W\[\e[m\]\[\033[00;34m\]$(__git_ps1 " [%s]")\[\e[1;32m\] \$\[\e[m\] '
+    PS1='\[\e[0;32m\]\u\[\e[0;31m\]@\[\e[0;32m\]\h\[\e[m\] \[\e[1;34m\]\W\[\e[m\]\[\033[00;34m\]$(__git_ps1 " [%s]")\[\e[1;32m\] \$\[\e[m\] '
     #PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
 else
-    PS1='\u \W$(__git_ps1 " [%s]") \$ '
+    PS1='\u@\h \W$(__git_ps1 " [%s]") \$ '
     #PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
 fi
 unset color_prompt force_color_prompt
@@ -122,16 +121,16 @@ export EDITOR=vim
 
 export PATH=~/.scripts:$PATH
 
-function killdetached () {
-    for session in $(screen -ls | grep -o '[0-9]\{4\}'); do
-        screen -S "${session}" -X quit
-    done   
-}
 function waitforport () {
     echo "Waiting for port $1""..."
     until nc -vz localhost $1; do true; done &>/dev/null
 }
-alias playground="cat | sed '1i#include <stdio.h>\\n#include <malloc.h>\\n#include <string.h>\\nint main() { ' | sed '$ a}' | tcc -run -"
+function redirect() {
+    sudo iptables -t nat -A PREROUTING -i eth0 -p $1 --dport $2 -j REDIRECT --to-port $3
+}
+alias playground="cat | sed '1i#include <stdio.h>\\n#include <malloc.h>\\n#include <string.h>\\nint main() { ' | sed '$ a printf("\n"); }' | tcc -run -"
+alias please='sudo '
+alias ns='netstat -lnutp'
 
 source ~/.localrc
 

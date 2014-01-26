@@ -65,8 +65,10 @@ main = do
         ((controlMask .|. shiftMask,    xK_j    ), windowToScreen D False),
 
         -- Audio control
-        ((0, 0x1008ff11), spawn "amixer set Headphone 5-"),
-        ((0, 0x1008ff13), spawn "amixer set Headphone 5+"),
-        ((0, 0x1008ff12), spawn "amixer set Headphone toggle set Master toggle")
+        ((0, 0x1008ff11), spawn "amixer set Master 5-"),
+        ((0, 0x1008ff13), spawn "amixer set Master 5+"),
+        -- ((0, 0x1008ff12), spawn "amixer set Headphone toggle set Master toggle"),
 
+        -- Watch cluster
+        ((mod1Mask .|. shiftMask, xK_space), spawn "urxvt -e run watch cluster")
     ]

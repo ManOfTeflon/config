@@ -121,7 +121,6 @@ set number
 " search
 set hlsearch
 set incsearch
-set ignorecase
 set smartcase
 
 " syntax highlighting
@@ -178,6 +177,7 @@ set title "terminal title
 
 " auto-save on leaving focus
 au FocusLost * :wa
+au VimResized * <c-w>=
 
 " reselect things just pasted
 nnoremap <leader>v V`]
@@ -206,7 +206,7 @@ nnoremap <S-LEFT> <C-w><
 nnoremap <S-RIGHT> <C-w>>
 
 highlight SignColumn gui=bold ctermbg=Black ctermfg=White
-highlight Cursor ctermbg=None ctermfg=LightBlue
+highlight Cursor ctermbg=None ctermfg=23
 
 function! HighlightCursor()
   let cword=expand("<cword>")
