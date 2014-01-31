@@ -26,15 +26,6 @@ shopt -s checkwinsize
 
 # make less more friendly for non-text input files, see lesspipe(1)
 [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)" 
-# set variable identifying the chroot you work in (used in the prompt below)
-if [ -z "$debian_chroot" ] && [ -r /etc/debian_chroot ]; then
-    debian_chroot=$(cat /etc/debian_chroot)
-fi
-
-# set a fancy prompt (non-color, unless we know we "want" color)
-case "$TERM" in
-    xterm-color) color_prompt=yes;;
-esac
 
 # uncomment for a colored prompt, if the terminal has the capability; turned
 # off by default to not distract the user: the focus in a terminal window
@@ -52,6 +43,12 @@ if [ -n "$force_color_prompt" ]; then
     fi
 fi
 
+# set a fancy prompt (non-color, unless we know we "want" color)
+case "$TERM" in
+    xterm-color) ;&
+    rxvt-256color) color_prompt=yes;;
+esac
+
 if [ -f /usr/share/git/completion/git-prompt.sh ] && ! shopt -oq posix; then
     source /usr/share/git/completion/git-prompt.sh
 fi
@@ -60,21 +57,10 @@ GIT_PS1_SHOWSTASHSTATE=true
 
 if [ "$color_prompt" = yes ]; then
     PS1='\[\e[0;32m\]\u\[\e[0;36m\]@\[\e[0;38m\]\h\[\e[m\] \[\e[1;34m\]\W\[\e[m\]\[\033[00;34m\]$(__git_ps1 " [%s]")\[\e[1;32m\] \$\[\e[m\] '
-    #PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
 else
     PS1='\u@\h \W$(__git_ps1 " [%s]") \$ '
-    #PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
 fi
 unset color_prompt force_color_prompt
-
-# If this is an xterm set the title to user@host:dir
-case "$TERM" in
-xterm*|rxvt*)
-    PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]$PS1"
-    ;;
-*)
-    ;;
-esac
 
 # enable color support of ls and also add handy aliases
 if [ -x /usr/bin/dircolors ]; then
@@ -89,10 +75,8 @@ if [ -x /usr/bin/dircolors ]; then
 fi
 
 # some more ls aliases
-alias ls='ls -la --color '
-alias ll='ls -alF '
-alias la='ls -A '
-alias l='ls -CF '
+alias ls='ls -lh --color '
+alias la='ls -Alh --color '
 
 # Add an "alert" alias for long running commands.  Use like so:
 #   sleep 10; alert
@@ -128,10 +112,26 @@ function waitforport () {
 function redirect() {
     sudo iptables -t nat -A PREROUTING -i eth0 -p $1 --dport $2 -j REDIRECT --to-port $3
 }
-alias playground="cat | sed '1i#include <stdio.h>\\n#include <malloc.h>\\n#include <string.h>\\nint main() { ' | sed '$ a printf("\n"); }' | tcc -run -"
-alias please='sudo '
-alias ns='netstat -lnutp'
+function ssh_with_config() {
+    scp ~/.bashrc $1:/tmp/.bashrc_temp > /dev/null
+    sudo rsync -avz --delete ~/.vim $1:/tmp/vim
+    TERM=xterm-256color ssh -t $@ "bash --rcfile /tmp/.bashrc_temp; rm /tmp/.bashrc_temp"
+}
 
+alias playground="cat | sed '1i#include <stdio.h>\\n#include <malloc.h>\\n#include <string.h>\\nint main() { ' | sed '$ a printf(\"\n\"); }' | tcc -run -"
+alias please='sudo '
+alias sudo='sudo '
+alias bitch='. bitch '
+alias ns='netstat -lnutp'
+alias ssh='TERM=xterm-256color ssh_with_config '
+alias vim='vim -u /tmp/vim/.vimrc '
+if [ ! -d /tmp/vim ]; then
+    ln -s ~/.vim /tmp/vim
+fi
+
+touch ~/.localrc
 source ~/.localrc
 
-xrdb ~/.Xresources
+if [ -n `which xrdb` ]; then
+    xrdb ~/.Xresources &>/dev/null
+fi

@@ -10,6 +10,11 @@
 " properly set to work with the Vim-related packages available in Debian.
 " runtime! archlinux.vim
 
+let &runtimepath = printf('%s/vimfiles,%s,%s/vimfiles/after', $VIM, $VIMRUNTIME, $VIM)
+let s:portable = expand('<sfile>:p:h')
+
+let &runtimepath = printf('%s,%s,%s/after', s:portable, &runtimepath, s:portable)
+
 set nocp
 
 " If you prefer the old-style vim functionalty, add 'runtime! vimrc_example.vim'
