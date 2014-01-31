@@ -114,7 +114,7 @@ function redirect() {
 }
 function ssh_with_config() {
     scp ~/.bashrc $1:/tmp/.bashrc_temp > /dev/null
-    sudo rsync -avz --delete ~/.vim $1:/tmp/vim
+    # sudo rsync -avz --delete ~/.vim $1:/tmp/vim
     TERM=xterm-256color ssh -t $@ "bash --rcfile /tmp/.bashrc_temp; rm /tmp/.bashrc_temp"
 }
 
