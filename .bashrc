@@ -60,6 +60,9 @@ if [ "$color_prompt" = yes ]; then
 else
     PS1='\u@\h \W$(__git_ps1 " [%s]") \$ '
 fi
+if [ `hostname` != "man" ]; then
+    PS1="${PS1}\[\e[1;33m\]"
+fi
 unset color_prompt force_color_prompt
 
 # enable color support of ls and also add handy aliases
@@ -124,10 +127,10 @@ alias sudo='sudo '
 alias bitch='. bitch '
 alias ns='netstat -lnutp'
 alias ssh='TERM=xterm-256color ssh_with_config '
-alias vim='vim -u /tmp/vim/.vimrc '
-if [ ! -d /tmp/vim ]; then
-    ln -s ~/.vim /tmp/vim
-fi
+# alias vim='vim -u /tmp/vim/.vimrc '
+# if [ ! -d /tmp/vim ]; then
+#     ln -s ~/.vim /tmp/vim
+# fi
 
 touch ~/.localrc
 source ~/.localrc
