@@ -1,17 +1,74 @@
 Config { font = "-*-Fixed-Bold-R-Normal-*-13-*-*-*-*-*-*-*",
-         bgColor = "black",
-         fgColor = "grey",
-         position = TopW L 100,
-         commands = [ Run Weather "EGPF" ["-t"," <tempF>F","-L","64","-H","77","--normal","green","--high","red","--low","lightblue"] 36000,
-                      Run Cpu ["-L","3","-H","50","--normal","green","--high","red"] 10,
-                      Run Memory ["-t","Mem: <usedratio>%"] 10,
-                      Run Com "volume" [ ] "" 5,
-                      Run Battery ["-t","Batt: % / ","-L","25","-H","75","-h","green","-n","yellow","-l","red","--","-c","energy_full"] 10,
-                      Run Swap [] 10,
-                      Run Date "%a %b %_d %l:%M" "date" 10,
-                      Run StdinReader
-                    ],
-         sepChar = "%",
-         alignSep = "}{",
-         template = "%StdinReader% }{ %volume% | %cpu% | %memory% * %swap%     <fc=#ee9a00>%date%</fc> | %EGPF%"
-       }
+    bgColor = "black",
+    fgColor = "grey",
+    position = TopW L 100,
+    lowerOnStart = False,
+    commands = [
+        Run StdinReader,
+        Run Wireless "wlan0" [
+            "-H", "75",
+            "-h", "green",
+            "-n", "yellow",
+            "-L", "50",
+            "-l", "red"
+        ] 5,
+        Run DynNetwork [
+            "-t", "<rx>-><tx>",
+            "-H", "10240",
+            "-h", "red",
+            "-n", "yellow",
+            "-L", "1024",
+            "-l", "green",
+            "-h", "red",
+            "-S", "True"
+        ] 5,
+        Run Com "volume" [ ] "" 5,
+        Run Cpu [
+            "-H", "50",
+            "-h", "red",
+            "-n", "yellow",
+            "-L", "10",
+            "-l", "green"
+        ] 10,
+        Run Memory [
+            "-t","Mem: <usedratio>%",
+            "-H", "75",
+            "-h", "red",
+            "-n", "yellow",
+            "-L", "50",
+            "-l", "green"
+        ] 10,
+        Run Swap [
+            "-t","Swap: <usedratio>%",
+            "-H", "75",
+            "-h", "red",
+            "-n", "yellow",
+            "-L", "50",
+            "-l", "green"
+        ] 10,
+        Run BatteryP ["BAT0"] [
+            "-t", "Batt: <acstatus><left>%",
+            "-L", "25",
+            "-l", "red",
+            "-n", "yellow",
+            "-H", "75",
+            "-h", "green",
+            "--",
+            "-i", "<fc=green>*</fc>",
+            "-O", "<fc=yellow>*</fc>",
+            "-o", "<fc=red>*</fc>"
+        ] 10,
+        Run Date "%a %b %_d %l:%M" "date" 10,
+        Run Weather "EGPF" [
+            "-t", " <tempF>F",
+            "-H", "85",
+            "-h", "red",
+            "-n", "green",
+            "-L", "55",
+            "-l", "lightblue"
+        ] 36000
+    ],
+    sepChar = "%",
+    alignSep = "}{",
+    template = "%StdinReader% }{ %wlan0wi% (%dynnetwork%) | %volume% | %cpu% | %memory% * %swap% | %battery%     <fc=#ee9a00>%date%</fc> | %EGPF%"
+}

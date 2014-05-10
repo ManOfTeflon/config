@@ -8,6 +8,8 @@ import XMonad.Hooks.FadeInactive
 import XMonad.Layout.Spacing
 import System.IO
 
+import qualified XMonad.StackSet as W
+
 myLogHook :: X ()
 myLogHook = fadeInactiveLogHook fadeAmount
     where fadeAmount = 0.85
@@ -21,13 +23,14 @@ main = do
       normalBorderColor  = "#000000",
       focusedBorderColor = "#9900cc",
       focusFollowsMouse  = False,
+      workspaces         = map show [1..10],
       manageHook = manageDocks <+> manageHook defaultConfig,
       layoutHook = avoidStruts $ layoutHook defaultConfig,
       logHook = dynamicLogWithPP xmobarPP {
         ppOutput = hPutStrLn xmproc,
         ppTitle = xmobarColor "green" "" . shorten 50
       } >> myLogHook
-    } `additionalKeys` [
+    } `additionalKeys` ([
         ((mod1Mask,                 xK_Page_Down), sendMessage Shrink),
         ((mod1Mask,                 xK_Page_Up), sendMessage Expand),
 
@@ -67,8 +70,10 @@ main = do
         -- Audio control
         ((0, 0x1008ff11), spawn "amixer set Master 5-"),
         ((0, 0x1008ff13), spawn "amixer set Master 5+"),
-        -- ((0, 0x1008ff12), spawn "amixer set Headphone toggle set Master toggle"),
+        ((0, 0x1008ff12), spawn "amixer set Master toggle; amixer sset Headphone unmute; amixer sset Speaker unmute"),
 
         -- Watch cluster
-        ((mod1Mask .|. shiftMask, xK_space), spawn "urxvt -e run watch cluster")
-    ]
+        ((mod1Mask .|. shiftMask, xK_space), spawn "urxvt -e run watch head")
+    ] ++ [((m .|. mod1Mask, k), windows (f i))
+            | (i, k) <- zip (map show [1..10]) ([xK_1..xK_9] ++ [xK_0])
+            , (f, m) <- [(W.greedyView, 0), (W.shift, shiftMask)]])

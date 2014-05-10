@@ -109,3 +109,4 @@ URxvt.keysym.M-v:       perl:clipboard:paste
 URxvt.colorIT:          #87af5f
 URxvt.colorBD:          #d7d7d7
 URxvt.colorUL:          #87afd7
+URxvt.font:             xft:Inconsolata:size=9

@@ -56,9 +56,9 @@ GIT_PS1_SHOWDIRTYSTATE=true
 GIT_PS1_SHOWSTASHSTATE=true
 
 if [ "$color_prompt" = yes ]; then
-    PS1='\[\e[0;32m\]\u\[\e[0;36m\]@\[\e[0;38m\]\h\[\e[m\] \[\e[1;34m\]\W\[\e[m\]\[\033[00;34m\]$(__git_ps1 " [%s]")\[\e[1;32m\] \$\[\e[m\] '
+    PS1='\[\e[0;32m\]\u\[\e[0;36m\]@\[\e[0;38m\]\h\[\e[m\] \[\e[1;34m\]\W\[\e[m\]\[\033[00;34m\]$(__git_ps1 " [%s]" 2>/dev/null)\[\e[1;32m\] \$\[\e[m\] '
 else
-    PS1='\u@\h \W$(__git_ps1 " [%s]") \$ '
+    PS1='\u@\h \W$(__git_ps1 " [%s]" 2>/dev/null) \$ '
 fi
 if [ `hostname` != "man" ]; then
     PS1="${PS1}\[\e[1;33m\]"
@@ -76,10 +76,6 @@ if [ -x /usr/bin/dircolors ]; then
     alias fgrep='fgrep --color=auto '
     alias egrep='egrep --color=auto '
 fi
-
-# some more ls aliases
-alias ls='ls -lh --color '
-alias la='ls -Alh --color '
 
 # Add an "alert" alias for long running commands.  Use like so:
 #   sleep 10; alert
@@ -106,8 +102,6 @@ bind '"\e[B": history-search-forward'
 
 export EDITOR=vim
 
-export PATH=~/.scripts:$PATH
-
 function waitforport () {
     echo "Waiting for port $1""..."
     until nc -vz localhost $1; do true; done &>/dev/null
@@ -116,10 +110,14 @@ function redirect() {
     sudo iptables -t nat -A PREROUTING -i eth0 -p $1 --dport $2 -j REDIRECT --to-port $3
 }
 function ssh_with_config() {
-    scp ~/.bashrc $1:/tmp/.bashrc_temp > /dev/null
+    cat ~/.bash_profile ~/.bashrc > /tmp/.bashrc_temp_out
+    scp ${@:2} /tmp/.bashrc_temp_out $1:/tmp/.bashrc_temp > /dev/null
     # sudo rsync -avz --delete ~/.vim $1:/tmp/vim
     TERM=xterm-256color ssh -t $@ "bash --rcfile /tmp/.bashrc_temp; rm /tmp/.bashrc_temp"
 }
+
+# some more ls aliases
+alias ls='ls -lAh --color --group-directories-first '
 
 alias playground="cat | sed '1i#include <stdio.h>\\n#include <malloc.h>\\n#include <string.h>\\nint main() { ' | sed '$ a printf(\"\n\"); }' | tcc -run -"
 alias please='sudo '
@@ -127,6 +125,9 @@ alias sudo='sudo '
 alias bitch='. bitch '
 alias ns='netstat -lnutp'
 alias ssh='TERM=xterm-256color ssh_with_config '
+alias ssh_no_config='TERM=xterm-256color \ssh '
+alias dbg='gdb -ex r -arg '
+alias g='git'
 # alias vim='vim -u /tmp/vim/.vimrc '
 # if [ ! -d /tmp/vim ]; then
 #     ln -s ~/.vim /tmp/vim

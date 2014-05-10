@@ -29,7 +29,7 @@ set directory=/home/mandrews/.vim
 " leader key to ,
 let mapleader=","
 
-set sessionoptions=curdir,help,blank,folds,tabpages
+set sessionoptions=curdir,help,blank,tabpages
 
 set rtp+=~/.vim/bundle/vundle/
 call vundle#rc()
@@ -37,6 +37,8 @@ call vundle#rc()
 Bundle 'gmarik/vundle'
 
 Bundle 'tpope/vim-fugitive'
+Bundle 'justinmk/vim-syntax-extra'
+
 Bundle 'xolox/vim-misc'
 
 Bundle 'xolox/vim-session'
@@ -51,6 +53,14 @@ Bundle 'airblade/vim-rooter'
 Bundle 'ton/vim-bufsurf'
 
 Bundle 'bling/vim-airline'
+set laststatus=2
+let g:airline_theme='kolor'
+let g:airline_detect_whitespace=0
+Bundle 'kevinw/pyflakes-vim'
+
+Bundle 'terryma/vim-multiple-cursors'
+
+au BufRead,BufNewFile *.yxx set ft=yacc
 
 nnoremap L :BufSurfForward<cr>
 nnoremap H :BufSurfBack<cr>
@@ -58,6 +68,7 @@ nnoremap <F4> :BufSurfList<cr>
 nnoremap _ H
 nmap f <Leader><Leader>f
 nmap F <Leader><Leader>F
+" nnoremap <C-S-o> <C-i>
 
 let g:ctrlk_clang_library_path="/usr/lib/llvm-3.3/lib"
 nnoremap <F3> :call GetCtrlKState()<CR>
@@ -143,6 +154,7 @@ filetype plugin indent on
 
 " maintain more context around cursor
 set scrolloff=100
+" au BufWinEnter * norm M
 
 " Quickly edit/reload the vimrc file
 nmap <silent> <leader>ev :e $MYVIMRC<CR>
@@ -157,7 +169,6 @@ nnoremap j gj
 nnoremap k gk
 vnoremap j gj
 vnoremap k gk
-vmap w wh
 vmap r "_dP
 set clipboard+=unnamed
 
@@ -180,9 +191,7 @@ set title "terminal title
 " set list
 " set listchars=tab:>.trail:.,extends:#,nbsp:.
 
-" auto-save on leaving focus
-au FocusLost * :wa
-au VimResized * <c-w>=
+au VimResized * let g:a='b' " normal <c-w>=<cr>
 
 " reselect things just pasted
 nnoremap <leader>v V`]
@@ -212,6 +221,7 @@ nnoremap <S-RIGHT> <C-w>>
 
 highlight SignColumn gui=bold ctermbg=Black ctermfg=White
 highlight Cursor ctermbg=None ctermfg=23
+highlight SpellBad ctermbg=10 ctermfg=White
 
 function! HighlightCursor()
   let cword=expand("<cword>")
@@ -246,7 +256,12 @@ set foldlevel=1         "this is just what i use
 set foldcolumn=0
 hi Folded guibg=DarkGrey ctermbg=DarkGrey guifg=Red ctermfg=Red
 hi FoldColumn guibg=Black ctermbg=Black guifg=White ctermfg=White
-hi Search guibg=LightBlue ctermbg=LightBlue guifg=Black ctermfg=Black
+hi Search guibg=LightBlue ctermbg=Magenta guifg=Black ctermfg=White
+
+hi DiffAdd cterm=bold ctermfg=85 ctermbg=234
+hi DiffDelete cterm=bold ctermfg=196
+hi DiffChange ctermfg=190 ctermbg=238
+hi link DiffText String
 
 " Tex-Live grep fix
 set grepprg=grep\ -nH\ $*
@@ -308,7 +323,7 @@ nnoremap <c-p>h :call HPasteWindow('left')<cr>
 nnoremap <c-p>l :call HPasteWindow('right')<cr>
 nnoremap <c-p>p :call HPasteWindow('here')<cr>
 
-let g:extension_cycle = ['.c', '.cc', '.cpp', '.h', '.hpp', '.ipp', '']
+let g:extension_cycle = ['.c', '.cc', '.cpp', '.h', '.hpp', '.ipp']
 function! CycleExtension()
     let filename = expand('%:p')
     let i=0
@@ -337,3 +352,7 @@ function! CycleExtension()
 endfunction
 
 nmap <tab> :call CycleExtension()<cr>
+
+noremap <PageUp> <C-U>
+noremap <PageDown> <C-D>
+
