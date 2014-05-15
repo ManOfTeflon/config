@@ -1,27 +1,12 @@
-Config { font = "-*-Fixed-Bold-R-Normal-*-13-*-*-*-*-*-*-*",
+Config {
+    font = "xft:Inconsolata:8",
     bgColor = "black",
     fgColor = "grey",
-    position = TopW L 100,
+    position = Top,
     lowerOnStart = False,
     commands = [
         Run StdinReader,
-        Run Wireless "wlan0" [
-            "-H", "75",
-            "-h", "green",
-            "-n", "yellow",
-            "-L", "50",
-            "-l", "red"
-        ] 5,
-        Run DynNetwork [
-            "-t", "<rx>-><tx>",
-            "-H", "10240",
-            "-h", "red",
-            "-n", "yellow",
-            "-L", "1024",
-            "-l", "green",
-            "-h", "red",
-            "-S", "True"
-        ] 5,
+        Run Com "network-traffic" [ ] "" 10,
         Run Com "volume" [ ] "" 5,
         Run Cpu [
             "-H", "50",
@@ -70,5 +55,5 @@ Config { font = "-*-Fixed-Bold-R-Normal-*-13-*-*-*-*-*-*-*",
     ],
     sepChar = "%",
     alignSep = "}{",
-    template = "%StdinReader% }{ %wlan0wi% (%dynnetwork%) | %volume% | %cpu% | %memory% * %swap% | %battery%     <fc=#ee9a00>%date%</fc> | %EGPF%"
+    template = "%StdinReader% }{ %network-traffic% | %volume% | %cpu% | %memory% * %swap% | %battery%     <fc=#ee9a00>%date%</fc> | %EGPF%"
 }

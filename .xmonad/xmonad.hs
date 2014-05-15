@@ -7,6 +7,13 @@ import XMonad.Actions.Navigation2D
 import XMonad.Hooks.FadeInactive
 import XMonad.Layout.Spacing
 import System.IO
+import Control.Monad (filterM,liftM, join)
+
+import Data.IORef
+import Data.List
+import qualified Data.Set as S
+import qualified XMonad.StackSet as W
+import XMonad.Util.EZConfig(additionalKeys,removeKeys)
 
 import qualified XMonad.StackSet as W
 
@@ -14,7 +21,19 @@ myLogHook :: X ()
 myLogHook = fadeInactiveLogHook fadeAmount
     where fadeAmount = 0.85
 
+myFadeHook toggleFadeSet = fadeOutLogHook $ fadeIf (testCondition toggleFadeSet) 0.85
+doNotFadeOutWindows = className =? "urxvt"
+
+testCondition floats =
+    liftM not doNotFadeOutWindows <&&> isUnfocused
+    <&&> (join . asks $ \w -> liftX . io $ S.notMember w `fmap` readIORef floats)
+
+toggleFadeOut :: Window -> S.Set Window -> S.Set Window
+toggleFadeOut w s | w `S.member` s = S.delete w s
+                  | otherwise = S.insert w s
+
 main = do
+  toggleFadeSet <- newIORef S.empty
   xmproc <- spawnPipe "/usr/bin/xmobar ~/.xmobarrc"
   xmonad $ withNavigation2DConfig defaultNavigation2DConfig
          $ defaultConfig
@@ -29,7 +48,7 @@ main = do
       logHook = dynamicLogWithPP xmobarPP {
         ppOutput = hPutStrLn xmproc,
         ppTitle = xmobarColor "green" "" . shorten 50
-      } >> myLogHook
+      } >> myFadeHook toggleFadeSet
     } `additionalKeys` ([
         ((mod1Mask,                 xK_Page_Down), sendMessage Shrink),
         ((mod1Mask,                 xK_Page_Up), sendMessage Expand),
@@ -73,7 +92,9 @@ main = do
         ((0, 0x1008ff12), spawn "amixer set Master toggle; amixer sset Headphone unmute; amixer sset Speaker unmute"),
 
         -- Watch cluster
-        ((mod1Mask .|. shiftMask, xK_space), spawn "urxvt -e run watch head")
+        ((mod1Mask .|. shiftMask, xK_space), spawn "urxvt -e run watch head"),
+
+        ((mod1Mask .|. shiftMask, xK_f), withFocused $ io . modifyIORef toggleFadeSet . toggleFadeOut)
     ] ++ [((m .|. mod1Mask, k), windows (f i))
             | (i, k) <- zip (map show [1..10]) ([xK_1..xK_9] ++ [xK_0])
             , (f, m) <- [(W.greedyView, 0), (W.shift, shiftMask)]])
