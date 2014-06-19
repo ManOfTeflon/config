@@ -15,8 +15,6 @@ import qualified Data.Set as S
 import qualified XMonad.StackSet as W
 import XMonad.Util.EZConfig(additionalKeys,removeKeys)
 
-import qualified XMonad.StackSet as W
-
 myLogHook :: X ()
 myLogHook = fadeInactiveLogHook fadeAmount
     where fadeAmount = 0.85
@@ -38,7 +36,7 @@ main = do
   xmonad $ withNavigation2DConfig defaultNavigation2DConfig
          $ defaultConfig
     { borderWidth        = 1,
-      terminal           = "urxvt",
+      terminal           = "urxvt -e tmux",
       normalBorderColor  = "#000000",
       focusedBorderColor = "#9900cc",
       focusFollowsMouse  = False,
@@ -63,10 +61,10 @@ main = do
         ((mod1Mask,                 xK_j), windowGo D False),
 
         -- Swap adjacent windows
-        ((mod1Mask .|. controlMask, xK_l), windowSwap R False),
-        ((mod1Mask .|. controlMask, xK_h), windowSwap L False),
-        ((mod1Mask .|. controlMask, xK_k), windowSwap U False),
-        ((mod1Mask .|. controlMask, xK_j), windowSwap D False),
+        ((shiftMask .|. controlMask, xK_l), windowSwap R False),
+        ((shiftMask .|. controlMask, xK_h), windowSwap L False),
+        ((shiftMask .|. controlMask, xK_k), windowSwap U False),
+        ((shiftMask .|. controlMask, xK_j), windowSwap D False),
 
         -- Directional navigation of screens
         ((mod1Mask .|. shiftMask,                 xK_l    ), screenGo R False),
@@ -81,10 +79,10 @@ main = do
         ((mod1Mask .|. controlMask .|. shiftMask, xK_j    ), screenSwap D False),
 
         -- Send window to adjacent screen
-        ((controlMask .|. shiftMask,    xK_l    ), windowToScreen R False),
-        ((controlMask .|. shiftMask,    xK_h    ), windowToScreen L False),
-        ((controlMask .|. shiftMask,    xK_k    ), windowToScreen U False),
-        ((controlMask .|. shiftMask,    xK_j    ), windowToScreen D False),
+        -- ((controlMask .|. shiftMask,    xK_l    ), windowToScreen R False),
+        -- ((controlMask .|. shiftMask,    xK_h    ), windowToScreen L False),
+        -- ((controlMask .|. shiftMask,    xK_k    ), windowToScreen U False),
+        -- ((controlMask .|. shiftMask,    xK_j    ), windowToScreen D False),
 
         -- Audio control
         ((0, 0x1008ff11), spawn "amixer set Master 5-"),

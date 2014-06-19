@@ -3,7 +3,7 @@
 # for examples
 
 # If not running interactively, don't do anything
-[ -z "$PS1" ] && return
+[ -t 0 -o -p 0 ] || return
 
 # don't put duplicate lines or lines starting with space in the history.
 # See bash(1) for more options
@@ -56,21 +56,18 @@ GIT_PS1_SHOWDIRTYSTATE=true
 GIT_PS1_SHOWSTASHSTATE=true
 
 if [ "$color_prompt" = yes ]; then
-    PS1='\[\e[0;32m\]\u\[\e[0;36m\]@\[\e[0;38m\]\h\[\e[m\] \[\e[1;34m\]\W\[\e[m\]\[\033[00;34m\]$(__git_ps1 " [%s]" 2>/dev/null)\[\e[1;32m\] \$\[\e[m\] '
+    export PS1='\[\e[0;32m\]\u\[\e[0;36m\]@\[\e[0;38m\]\h\[\e[m\] \[\e[1;34m\]\W\[\e[m\]\[\033[00;34m\]$(__git_ps1 " [%s]" 2>/dev/null)\[\e[1;32m\] \$\[\e[m\] '
 else
-    PS1='\u@\h \W$(__git_ps1 " [%s]" 2>/dev/null) \$ '
+    export PS1='\u@\h \W$(__git_ps1 " [%s]" 2>/dev/null) \$ '
 fi
 if [ `hostname` != "man" ]; then
-    PS1="${PS1}\[\e[1;33m\]"
+    export PS1="${PS1}\[\e[1;33m\]"
 fi
 unset color_prompt force_color_prompt
 
 # enable color support of ls and also add handy aliases
 if [ -x /usr/bin/dircolors ]; then
     test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
-    alias ls='ls --color=auto '
-    #alias dir='dir --color=auto'
-    #alias vdir='vdir --color=auto'
 
     alias grep='grep --color=auto '
     alias fgrep='fgrep --color=auto '
@@ -97,8 +94,8 @@ if [ -f /etc/bash_completion ] && ! shopt -oq posix; then
     . /etc/bash_completion
 fi
 
-bind '"\e[A": history-search-backward'
-bind '"\e[B": history-search-forward'
+bind '"\e[A": history-search-backward' 2>/dev/null
+bind '"\e[B": history-search-forward' 2>/dev/null
 
 export EDITOR=vim
 
@@ -117,7 +114,10 @@ function ssh_with_config() {
 }
 
 # some more ls aliases
-alias ls='ls -lAh --color --group-directories-first '
+function ls() {
+    /usr/bin/env ls -lAh --color --group-directories-first $@
+# alias ls='ls -lAh --color --group-directories-first '
+}
 
 alias playground="cat | sed '1i#include <stdio.h>\\n#include <malloc.h>\\n#include <string.h>\\nint main() { ' | sed '$ a printf(\"\n\"); }' | tcc -run -"
 alias please='sudo '
@@ -126,8 +126,8 @@ alias bitch='. bitch '
 alias ns='netstat -lnutp'
 alias ssh='TERM=xterm-256color ssh_with_config '
 alias ssh_no_config='TERM=xterm-256color \ssh '
-alias dbg='gdb -ex r -arg '
 alias g='git'
+alias tmux='tmux -2 '
 # alias vim='vim -u /tmp/vim/.vimrc '
 # if [ ! -d /tmp/vim ]; then
 #     ln -s ~/.vim /tmp/vim

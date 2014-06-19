@@ -26,6 +26,12 @@ filetype off
 " directory
 set directory=/home/mandrews/.vim
 
+" set relativenumber
+set undodir=/home/mandrews/.vim
+set undofile
+
+let loaded_matchparen = 1
+
 " leader key to ,
 let mapleader=","
 
@@ -43,28 +49,45 @@ Bundle 'xolox/vim-misc'
 
 Bundle 'xolox/vim-session'
 
-Bundle 'EasyMotion'
-
 Bundle 'L9'
 Bundle 'FuzzyFinder'
 Bundle 'SkidanovAlex/CtrlK'
 
 Bundle 'airblade/vim-rooter'
-Bundle 'ton/vim-bufsurf'
 
 Bundle 'bling/vim-airline'
+
 set laststatus=2
+let g:airline_symbols = {}
 let g:airline_theme='kolor'
 let g:airline_detect_whitespace=0
+let g:airline_powerline_fonts=1
+let g:airline_left_sep = ''
+let g:airline_left_alt_sep = ''
+let g:airline_right_sep = ''
+let g:airline_right_alt_sep = ''
+let g:airline_symbols.branch = ''
+let g:airline_symbols.readonly = ''
+let g:airline_symbols.linenr = ''
+
 Bundle 'kevinw/pyflakes-vim'
 
 Bundle 'terryma/vim-multiple-cursors'
 
+Bundle 'vim-scripts/ProportionalResize'
+
+Bundle 'ManOfTeflon/exterminator'
+Bundle 'ManOfTeflon/nerdtree-json'
+
+let g:NERDTreeWinSize = 70
+
+nnoremap <leader>n :NERDTree<cr>
+nnoremap <leader>N :exec 'e ' . getcwd()<cr>
+
 au BufRead,BufNewFile *.yxx set ft=yacc
 
-nnoremap L :BufSurfForward<cr>
-nnoremap H :BufSurfBack<cr>
-nnoremap <F4> :BufSurfList<cr>
+nnoremap L <C-i>
+nnoremap H <C-o>
 nnoremap _ H
 nmap f <Leader><Leader>f
 nmap F <Leader><Leader>F
@@ -73,12 +96,14 @@ nmap F <Leader><Leader>F
 let g:ctrlk_clang_library_path="/usr/lib/llvm-3.3/lib"
 nnoremap <F3> :call GetCtrlKState()<CR>
 nnoremap <F2> :call CtrlKNavigateSymbols()<CR>
+nnoremap <leader>e :call CtrlKNavigateSymbols()<CR>
 nnoremap ` :call CtrlKGoToDefinition()<CR>
 nnoremap ~ :call CtrlKGetReferences()<CR>
 
 nnoremap <space> @q
 
-nmap & *:!git grep -n \\b<cword>\\b<cr>
+set grepprg=git\ grep\ -wn\ $*
+nmap & :grep! <cword> \| copen<cr>
 nmap * *N
 
 "colorscheme elflord
@@ -114,9 +139,6 @@ set wildmode=list:longest:full
 set ttyfast
 set cursorline
 
-" set relativenumber
-" set undofile
-
 " show commands
 set showcmd
 
@@ -145,6 +167,7 @@ syntax on
 
 " enable mouse
 set mouse=a
+set ttymouse=xterm2
 
 "allows sudo with :w!!
 cmap w!! %!sudo tee > /dev/null %
@@ -191,8 +214,6 @@ set title "terminal title
 " set list
 " set listchars=tab:>.trail:.,extends:#,nbsp:.
 
-au VimResized * let g:a='b' " normal <c-w>=<cr>
-
 " reselect things just pasted
 nnoremap <leader>v V`]
 
@@ -213,21 +234,25 @@ nnoremap <C-l> <C-w>l
 nnoremap <leader>` :tabe<cr>
 nnoremap <leader><tab> :tabn<cr>
 nnoremap <leader><S-tab> :tabN<cr>
-nnoremap <leader>b :! bash<CR>
 nnoremap <S-UP> <C-w>+
 nnoremap <S-DOWN> <C-w>-
 nnoremap <S-LEFT> <C-w><
 nnoremap <S-RIGHT> <C-w>>
 
-highlight SignColumn gui=bold ctermbg=Black ctermfg=White
-highlight Cursor ctermbg=None ctermfg=23
+highlight Cursor ctermbg=None ctermfg=24
 highlight SpellBad ctermbg=10 ctermfg=White
+highlight clear VertSplit
+highlight VertSplit ctermfg=56
+set fillchars+=vert:\│
 
 function! HighlightCursor()
   let cword=expand("<cword>")
   if cword =~ '\<\*\?\h\w*'
-    let cword = substitute(cword, "/", "\/", "g")
-    exec 'match Cursor /\<'.cword.'\>/'
+    try
+        exec 'match Cursor /\<'.cword.'\>/'
+    catch
+        match Cursor //
+    endtry
   else
     match Cursor //
   endif
@@ -264,7 +289,7 @@ hi DiffChange ctermfg=190 ctermbg=238
 hi link DiffText String
 
 " Tex-Live grep fix
-set grepprg=grep\ -nH\ $*
+" set grepprg=grep\ -nH\ $*
 
 "LaTeX
 "auto recompile upon save
@@ -353,6 +378,77 @@ endfunction
 
 nmap <tab> :call CycleExtension()<cr>
 
-noremap <PageUp> <C-U>
-noremap <PageDown> <C-D>
+nnoremap <leader>b :! build<CR>
 
+" These say shift, but they are actually ctrl
+set <S-Up>=[A
+set <S-Down>=[B
+set <S-Right>=[C
+set <S-Left>=[D
+
+function! s:get_range()
+  " Why is this not a built-in Vim script function?!
+  let [lnum1, col1] = getpos("'<")[1:2]
+  let [lnum2, col2] = getpos("'>")[1:2]
+  let lines = getline(lnum1, lnum2)
+  let lines[-1] = lines[-1][: col2 - (&selection == 'inclusive' ? 1 : 2)]
+  let lines[0] = lines[0][col1 - 1:]
+  return join(lines, "\n")
+endfunction
+
+comm! -nargs=0 -range GdbVEval exec 'GdbEval ' . s:get_range()
+
+nnoremap <F6>  :exec "GdbEval " . expand("<cword>")<CR>
+vnoremap <F6>  :GdbVEval<cr>
+nnoremap <F5>  :GdbLocals<CR>
+nnoremap <F4>  :GdbNoTrack<CR>
+
+nnoremap <Insert> :GdbContinue<cr>
+nnoremap <End> :GdbBacktrace<cr>
+nnoremap <Home> :GdbUntil<cr>
+nnoremap <S-Up> :GdbExec finish<cr>
+nnoremap <S-Down> :GdbExec step<cr>
+nnoremap <S-Right> :GdbExec next<cr>
+nnoremap <S-Left> :GdbToggle<cr>
+noremap <PageUp> :GdbExec up<cr>
+noremap <PageDown> :GdbExec down<cr>
+
+function! s:start_debugging(cmd)
+    cd $PATH_TO_MEMSQL
+    exec 'Dbg ' . a:cmd
+endfunction
+command! -nargs=1 DbgWrapper    call s:start_debugging(<f-args>)
+
+nnoremap <leader>B :DbgWrapper ./memsqld<cr>
+
+function! BranchEdit(branch, file)
+    enew
+    let branch_file = a:branch . ':' . a:file
+    exec "silent %!git show " . branch_file
+    setlocal nomodifiable buftype=nofile bufhidden=wipe
+    exec "file " . branch_file
+    filetype detect
+    au BufReadPre <buffer> setlocal modifiable buftype= bufhidden=hide
+    let b:original_file = a:file
+endfunction
+
+function! BranchEditComplete(arg, cmd, pos)
+    return system("git for-each-ref --format='%(refname:short)' refs/heads/")
+endfunction
+
+function! GitShow(branch)
+    Rooter
+    call BranchEdit(a:branch, expand('%'))
+endfunction
+
+function! OriginalFile()
+    if exists('b:original_file')
+        exec 'e ' . b:original_file
+    endif
+endfunction
+
+command! -nargs=1 -complete=custom,BranchEditComplete GitShow call GitShow(<q-args>)
+command! -nargs=0 OriginalFile call OriginalFile()
+
+nnoremap <leader>g :GitShow<space>
+nnoremap <leader>G :OriginalFile<cr>
