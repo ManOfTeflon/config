@@ -41,8 +41,8 @@ Xcursor.size: 16
 
 *background:            black
 *foreground:            S_base00
-*fading:                40
-*fadeColor:             S_base03
+! *fading:                40
+! *fadeColor:             S_base03
 *cursorColor:           S_base1
 *pointerColorBackground:S_base01
 *pointerColorForeground:S_base1
@@ -81,13 +81,14 @@ Xcursor.size: 16
 
 ! URxvt
 
-urxvt*termName: rxvt-256color
-URxvt*transparent: true
-URxvt*shading: 10
-URxvt*scrollBar: false
-URxvt*scrollTtyOutput: false
-URxvt*scrollWithBuffer: true
-URxvt*scrollTtyKeypress: true
+urxvt*.termName: rxvt-256color
+URxvt*.transparent: true
+URxvt*.background: [95]#000000
+URxvt*.shading: 10
+URxvt*.scrollBar: false
+URxvt*.scrollTtyOutput: false
+URxvt*.scrollWithBuffer: true
+URxvt*.scrollTtyKeypress: true
 
 URxvt.depth:            32
 
@@ -109,4 +110,4 @@ URxvt.keysym.M-v:       perl:clipboard:paste
 URxvt.colorIT:          #87af5f
 URxvt.colorBD:          #d7d7d7
 URxvt.colorUL:          #87afd7
-URxvt.font:             xft:Inconsolata\ For\ Powerline:size=10
+*.font:             xft:Inconsolata\ For\ Powerline:size=10

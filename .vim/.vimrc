@@ -78,36 +78,54 @@ Bundle 'vim-scripts/ProportionalResize'
 
 Bundle 'ManOfTeflon/exterminator'
 Bundle 'ManOfTeflon/nerdtree-json'
+Bundle 'ManOfTeflon/vim-make'
+
+Bundle 'Shougo/vimproc.vim'
+Bundle 'Shougo/vimshell.vim'
+
+Bundle 'wincent/Command-T'
+let g:CommandTMaxHeight = 10
+let g:CommandTMaxFiles = 500000
 
 let g:NERDTreeWinSize = 70
 
-nnoremap <leader>n :NERDTree<cr>
-nnoremap <leader>N :exec 'e ' . getcwd()<cr>
+nnoremap <silent> <leader>n :NERDTree<cr>
+nnoremap <silent> <leader>N :exec 'e ' . getcwd()<cr>
+
+nnoremap <silent> <leader><leader>n :0wincmd w<cr>
 
 au BufRead,BufNewFile *.yxx set ft=yacc
 
 nnoremap L <C-i>
 nnoremap H <C-o>
 nnoremap _ H
-nmap f <Leader><Leader>f
-nmap F <Leader><Leader>F
+nnoremap \ ;
 " nnoremap <C-S-o> <C-i>
 
 let g:ctrlk_clang_library_path="/usr/lib/llvm-3.3/lib"
-nnoremap <F3> :call GetCtrlKState()<CR>
-nnoremap <F2> :call CtrlKNavigateSymbols()<CR>
-nnoremap <leader>e :call CtrlKNavigateSymbols()<CR>
-nnoremap ` :call CtrlKGoToDefinition()<CR>
-nnoremap ~ :call CtrlKGetReferences()<CR>
+nnoremap <silent> <F3> :call GetCtrlKState()<CR>
+nnoremap <silent> <F2> :call CtrlKNavigateSymbols()<CR>
+nnoremap <silent> <leader>e :call CtrlKNavigateSymbols()<CR>
+au BufRead,BufNewFile *.{cpp,cc,c,h,hpp} nnoremap <buffer> ` :call CtrlKGoToDefinition()<CR>
+nnoremap ~ :call CtrlKGetReferences() \| Lopen<CR>
 
 nnoremap <space> @q
 
 set grepprg=git\ grep\ -wn\ $*
-nmap & :grep! <cword> \| copen<cr>
-nmap * *N
+nnoremap * *N
 
-"colorscheme elflord
-exec "colorscheme " . ['elflord'][localtime() % 1]
+set guioptions-=m
+set guioptions-=T
+set guioptions-=r
+set guioptions-=L
+set guioptions-=e
+set guicursor=a:blinkon0-block-Cursor
+set guifont=Inconsolata\ for\ Powerline\ Medium\ 10
+if v:progname == 'gvim'
+    colorscheme slate
+else
+    colorscheme elflord
+endif
 
 let g:session_default_to_last=1
 let g:session_autoload="yes"
@@ -170,7 +188,7 @@ set mouse=a
 set ttymouse=xterm2
 
 "allows sudo with :w!!
-cmap w!! %!sudo tee > /dev/null %
+cnoremap w!! %!sudo tee > /dev/null %
 
 " auto indent
 filetype plugin indent on
@@ -180,11 +198,11 @@ set scrolloff=100
 " au BufWinEnter * norm M
 
 " Quickly edit/reload the vimrc file
-nmap <silent> <leader>ev :e $MYVIMRC<CR>
-nmap <silent> <leader>sv :so $MYVIMRC<CR>
+nnoremap <silent> <leader>ev :e $MYVIMRC<CR>
+nnoremap <silent> <leader>sv :so $MYVIMRC<CR>
 
-nnoremap <leader>w :SaveSession<CR>:wa<CR>
-nnoremap <leader>q :SaveSession<CR>:xa<CR>
+nnoremap <silent> <leader>w :SaveSession<CR>:wa<CR>
+nnoremap <silent> <leader>q :SaveSession<CR>:xa<CR>
 
 " VERY useful remap
 nnoremap ; :
@@ -192,7 +210,7 @@ nnoremap j gj
 nnoremap k gk
 vnoremap j gj
 vnoremap k gk
-vmap r "_dP
+vnoremap r "_dP
 set clipboard+=unnamed
 
 " fix regex so it's like perl/python
@@ -200,14 +218,14 @@ set clipboard+=unnamed
 " vnoremap / /\v
 
 " clear highlights with ,<space>
-nnoremap <leader><space> :noh<cr>
+nnoremap <silent> <leader><space> :noh<cr>
 
 " hides buffers instead of closing them
 set hidden
 
 set history=1000   " remember more commands and search history
 set undolevels=1000 " use many levels of undo
-set wildignore=*.swp,*.bak,*.pyc,*.class
+set wildignore=*.swp,*.bak,*.pyc,*.class,*.o,bincache/**,objdir/**
 set title "terminal title
 
 " Shows spaces as you're writing
@@ -225,36 +243,62 @@ nnoremap <leader>h <c-w>v
 nnoremap <leader>j <c-w>s<c-w>j
 nnoremap <leader>k <c-w>s
 nnoremap <leader>l <c-w>v<c-w>l
-nnoremap <C-h> <C-w>h
-nnoremap <C-j> <C-w>j
-nnoremap <C-k> <C-w>k
-nnoremap <C-l> <C-w>l
+nmap <C-w>h <C-h>
+nmap <C-w>j <C-j>
+nmap <C-w>k <C-k>
+nmap <C-w>l <C-l>
+
+nnoremap <silent> <C-h> :call WindowMotion('h')<cr>
+nnoremap <silent> <C-j> :call WindowMotion('j')<cr>
+nnoremap <silent> <C-k> :call WindowMotion('k')<cr>
+nnoremap <silent> <C-l> :call WindowMotion('l')<cr>
+ 
+function WindowMotion(dir) "{{{
+    let dir = a:dir
+ 
+    let old_winnr = winnr()
+    execute "wincmd " . dir
+    if old_winnr != winnr()
+        return
+    endif
+ 
+    if dir == 'h'
+        let dir = '-L'
+    elseif dir == 'j'
+        let dir = '-D'
+    elseif dir == 'k'
+        let dir = '-U'
+    elseif dir == 'l'
+        let dir = '-R'
+    endif
+    call system('tmux select-pane ' . dir)
+endfunction
 
 " Creating and moving between tabs
-nnoremap <leader>` :tabe<cr>
-nnoremap <leader><tab> :tabn<cr>
-nnoremap <leader><S-tab> :tabN<cr>
+nnoremap <silent> <leader>` :tabe<cr>
+nnoremap <silent> <leader><tab> :tabn<cr>
+nnoremap <silent> <leader><S-tab> :tabN<cr>
 nnoremap <S-UP> <C-w>+
 nnoremap <S-DOWN> <C-w>-
 nnoremap <S-LEFT> <C-w><
 nnoremap <S-RIGHT> <C-w>>
 
-highlight Cursor ctermbg=None ctermfg=24
-highlight SpellBad ctermbg=10 ctermfg=White
+highlight CursorWord guibg=NONE ctermbg=None guifg=#005f87 ctermfg=24
+highlight SpellBad guibg=Green ctermbg=Green guifg=White ctermfg=White
 highlight clear VertSplit
-highlight VertSplit ctermfg=56
+highlight VertSplit guifg=#5f00d7 ctermfg=56
 set fillchars+=vert:\│
 
 function! HighlightCursor()
   let cword=expand("<cword>")
   if cword =~ '\<\*\?\h\w*'
     try
-        exec 'match Cursor /\<'.cword.'\>/'
+        exec 'match CursorWord /\<'.cword.'\>/'
     catch
-        match Cursor //
+        match CursorWord //
     endtry
   else
-    match Cursor //
+    match CursorWord //
   endif
 endfunction
 
@@ -274,18 +318,18 @@ au BufRead *
       \ exec "set path^=".default_path
 
 "folding settings
-set foldmethod=syntax   "fold based on indent
-set foldnestmax=10      "deepest fold is 10 levels
-set nofoldenable        "dont fold by default
-set foldlevel=1         "this is just what i use
-set foldcolumn=0
-hi Folded guibg=DarkGrey ctermbg=DarkGrey guifg=Red ctermfg=Red
+" set foldmethod=syntax   "fold based on indent
+" set foldnestmax=10      "deepest fold is 10 levels
+" set nofoldenable        "dont fold by default
+" set foldlevel=1         "this is just what i use
+" set foldcolumn=0
+hi Folded guibg=#5fffff ctermbg=87 guifg=Red ctermfg=Red
 hi FoldColumn guibg=Black ctermbg=Black guifg=White ctermfg=White
-hi Search guibg=LightBlue ctermbg=Magenta guifg=Black ctermfg=White
+hi Search guibg=Magenta ctermbg=Magenta guifg=White ctermfg=White
 
-hi DiffAdd cterm=bold ctermfg=85 ctermbg=234
-hi DiffDelete cterm=bold ctermfg=196
-hi DiffChange ctermfg=190 ctermbg=238
+hi DiffAdd gui=bold cterm=bold guifg=#5fffaf ctermfg=85 guibg=#1c1c1c ctermbg=234
+hi DiffDelete gui=bold cterm=bold guifg=#ff0000 ctermfg=196
+hi DiffChange guifg=#d7ff00 ctermfg=190 guibg=#444444 ctermbg=238
 hi link DiffText String
 
 " Tex-Live grep fix
@@ -336,17 +380,17 @@ function! HPasteWindow(direction)
   let &bufhidden = g:bufhidden
 endfunction
 
-nnoremap <c-d> :call HDeleteWindow()<cr>
-nnoremap <c-y> :call HYankWindow()<cr>
-nnoremap <c-p><up> :call HPasteWindow('up')<cr>
-nnoremap <c-p><down> :call HPasteWindow('down')<cr>
-nnoremap <c-p><left> :call HPasteWindow('left')<cr>
-nnoremap <c-p><right> :call HPasteWindow('right')<cr>
-nnoremap <c-p>k :call HPasteWindow('up')<cr>
-nnoremap <c-p>j :call HPasteWindow('down')<cr>
-nnoremap <c-p>h :call HPasteWindow('left')<cr>
-nnoremap <c-p>l :call HPasteWindow('right')<cr>
-nnoremap <c-p>p :call HPasteWindow('here')<cr>
+nnoremap <silent> <c-d> :call HDeleteWindow()<cr>
+nnoremap <silent> <c-y> :call HYankWindow()<cr>
+nnoremap <silent> <c-p><up> :call HPasteWindow('up')<cr>
+nnoremap <silent> <c-p><down> :call HPasteWindow('down')<cr>
+nnoremap <silent> <c-p><left> :call HPasteWindow('left')<cr>
+nnoremap <silent> <c-p><right> :call HPasteWindow('right')<cr>
+nnoremap <silent> <c-p>k :call HPasteWindow('up')<cr>
+nnoremap <silent> <c-p>j :call HPasteWindow('down')<cr>
+nnoremap <silent> <c-p>h :call HPasteWindow('left')<cr>
+nnoremap <silent> <c-p>l :call HPasteWindow('right')<cr>
+nnoremap <silent> <c-p>p :call HPasteWindow('here')<cr>
 
 let g:extension_cycle = ['.c', '.cc', '.cpp', '.h', '.hpp', '.ipp']
 function! CycleExtension()
@@ -376,9 +420,9 @@ function! CycleExtension()
     endwhile
 endfunction
 
-nmap <tab> :call CycleExtension()<cr>
+nnoremap <silent> <tab> :call CycleExtension()<cr>
 
-nnoremap <leader>b :! build<CR>
+nnoremap <silent> <leader>b :VimShellExecute build<CR>
 
 " These say shift, but they are actually ctrl
 set <S-Up>=[A
@@ -396,22 +440,24 @@ function! s:get_range()
   return join(lines, "\n")
 endfunction
 
+nnoremap <silent> & :exec 'VimGrep ' . expand('<cword>')<cr>
+vnoremap <silent> & :exec 'VimGrep ' . s:get_range()
 comm! -nargs=0 -range GdbVEval exec 'GdbEval ' . s:get_range()
 
-nnoremap <F6>  :exec "GdbEval " . expand("<cword>")<CR>
-vnoremap <F6>  :GdbVEval<cr>
-nnoremap <F5>  :GdbLocals<CR>
-nnoremap <F4>  :GdbNoTrack<CR>
+nnoremap <silent> <F6>  :exec "GdbEval " . expand("<cword>")<CR>
+vnoremap <silent> <F6>  :GdbVEval<cr>
+nnoremap <silent> <F5>  :GdbLocals<CR>
+nnoremap <silent> <F4>  :GdbNoTrack<CR>
 
-nnoremap <Insert> :GdbContinue<cr>
-nnoremap <End> :GdbBacktrace<cr>
-nnoremap <Home> :GdbUntil<cr>
-nnoremap <S-Up> :GdbExec finish<cr>
-nnoremap <S-Down> :GdbExec step<cr>
-nnoremap <S-Right> :GdbExec next<cr>
-nnoremap <S-Left> :GdbToggle<cr>
-noremap <PageUp> :GdbExec up<cr>
-noremap <PageDown> :GdbExec down<cr>
+nnoremap <silent> <Insert> :GdbContinue<cr>
+nnoremap <silent> <End> :GdbBacktrace<cr>
+nnoremap <silent> <Home> :GdbUntil<cr>
+nnoremap <silent> <S-Up> :GdbExec finish<cr>
+nnoremap <silent> <S-Down> :GdbExec step<cr>
+nnoremap <silent> <S-Right> :GdbExec next<cr>
+nnoremap <silent> <S-Left> :GdbToggle<cr>
+noremap <silent> <PageUp> :GdbExec up<cr>
+noremap <silent> <PageDown> :GdbExec down<cr>
 
 function! s:start_debugging(cmd)
     cd $PATH_TO_MEMSQL
@@ -419,7 +465,7 @@ function! s:start_debugging(cmd)
 endfunction
 command! -nargs=1 DbgWrapper    call s:start_debugging(<f-args>)
 
-nnoremap <leader>B :DbgWrapper ./memsqld<cr>
+nnoremap <silent> <leader>B :DbgWrapper ./memsqld<cr>
 
 function! BranchEdit(branch, file)
     enew
@@ -450,5 +496,7 @@ endfunction
 command! -nargs=1 -complete=custom,BranchEditComplete GitShow call GitShow(<q-args>)
 command! -nargs=0 OriginalFile call OriginalFile()
 
-nnoremap <leader>g :GitShow<space>
-nnoremap <leader>G :OriginalFile<cr>
+nnoremap <silent> <leader>g :GitShow<space>
+nnoremap <silent> <leader>G :OriginalFile<cr>
+
+nnoremap <silent> <leader>m :RemoteMake<cr>
