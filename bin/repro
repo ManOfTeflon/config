@@ -1,0 +1,35 @@
+#!/bin/bash
+
+dir=$HOME/.repro
+
+try () {
+    $@
+    e=$?
+    if (( e != 0 )); then
+        echo "Command '$@' failed!"
+        exit $e
+    fi
+}
+
+setup=
+aggs=0
+leaves=1
+
+while (( "$#" )); do
+    arg=$1
+    case $arg in
+        -s*|--setup=*)
+            setup=`echo $arg | sed -r 's/-s|--setup=//'`
+            ;;
+        *)
+            break ;;
+    esac
+    shift
+done
+script=$1
+
+try setup $setup
+
+if [ -n $script ]; then
+    replay $dir/$script.sql
+fi

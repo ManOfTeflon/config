@@ -1,0 +1,381 @@
+#!/usr/bin/python2
+
+from __future__ import unicode_literals
+
+import os
+import re
+import json
+import uuid
+import shlex
+import signal
+import socket
+import tempfile
+import pyinotify
+import subprocess
+import itertools as it
+from threading import RLock, Thread
+from argparse import ArgumentParser
+from multiprocessing import cpu_count, Pool
+from multiprocessing.pool import ThreadPool
+from time import strftime, sleep, time, localtime
+
+g_pool = None
+
+class Build(dict):
+    states = [ 'queued', 'running', 'error', 'cancelled', 'success' ]
+
+    def __init__(self, command):
+        self.uuid = str(uuid.uuid1())
+        self.command = command
+        self.set_state('queued')
+        self.deps = None
+
+    def __setattr__(self, key, val):
+        self.__setitem__(key, val)
+
+    def __getattr__(self, key):
+        return self.__getitem__(key)
+
+    def __getstate__(self):
+        return self.__dict__.items()
+
+    def __setstate__(self, items):
+        self.__dict__ = { k: v for (k, v) in items }
+
+    def __repr__(self):
+        return "<%s: %s>" % (self.__class__.__name__, dict.__repr__(self))
+
+    def run(self):
+        try:
+            if self.cancelled():
+                return self
+            self.set_state('running')
+
+            p = subprocess.Popen(self.command['command'], cwd=self.command['directory'], shell=True, stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
+            out, _ = p.communicate()
+            _, self.deps = g_pool.apply(find_dependencies, (self.command,))
+
+            self.set_error(out)
+        except:
+            import traceback
+            print self.command['file']
+            traceback.print_exc()
+        return self
+
+    def cancelled(self):
+        return self.get_state() == 'cancelled'
+
+    def is_error(self):
+        return self.get_state() == 'error'
+
+    def is_completed(self):
+        return self.get_state() in [ 'cancelled', 'success', 'error' ]
+
+    def queued(self):
+        return self.get_state() == 'queued'
+
+    def set_state(self, state):
+        assert not self.is_completed(), "Cannot resurect build"
+        assert state in Build.states, "Invalid state " + state
+        self.state = state
+        self.error = ''
+        self.time = time()
+
+    def get_state(self):
+        try:
+            return self.state
+        except KeyError:
+            return None
+
+    def set_error(self, error):
+        if error:
+            self.set_state('error')
+        else:
+            self.set_state('success')
+        self.error = error
+
+    def name(self):
+        return self.command['file']
+
+    def cancel(self):
+        self.set_state('cancelled')
+        self.error = 'Cancelled'
+
+    def to_string(self, verbose=False):
+        if self.cancelled():
+            return ''
+        if not verbose:
+            return '%s: %s' % (self.state, os.path.relpath(self.command['file']))
+        else:
+            return (u"\n%s @ %s:\n  %s\n" + "-" * 80 + '\n') % (self.command['file'], strftime("%d %b %Y %I:%M:%S %p", localtime(self.time)), self.error.decode('utf-8').replace('\n', '\n  '))
+
+    def get_error(self):
+            return self.error.decode('utf-8')
+
+class BuildManager(object):
+    @staticmethod
+    def watch(state, directory='/tmp'):
+        subprocess.call('watch -n 1 --color source-highlight -s ll -f esc -n -i %s' % BuildManager.get_filename(state, directory), shell=True)
+
+    @staticmethod
+    def get_filename(state, directory):
+        assert state in Build.states, "No such state!"
+        return os.path.join(directory, 'build-%s' % state)
+
+    def __init__(self, directory='/tmp/'):
+        self.lock = RLock()
+        self.directory = directory
+        self._builds = {}
+
+    def __getitem__(self, build):
+        return self._builds[build.uuid]
+
+    def create_build(self, command):
+        with self.lock:
+            build = Build(command)
+            for uuid, other in self._builds.items():
+                if other.command['file'] == command['file']:
+                    if other.queued():
+                        other.cancel()
+            self._builds[build.uuid] = build
+            return build
+
+    def reap(self):
+        with self.lock:
+            latest = {}
+            for uuid, build in self._builds.iteritems():
+                last_time = latest.get(build.command['file'], build).time
+                if build.time >= last_time:
+                    latest[build.command['file']] = build
+            for uuid, build in self._builds.items():
+                if build.is_completed():
+                    try:
+                        assert latest[build.command['file']].uuid == build.uuid
+                    except AssertionError:
+                        del self._builds[uuid]
+                    except KeyError:
+                        assert not build.is_completed()
+                        pass
+
+    def get_nth(self, ordinal, state=None):
+        if state is not None:
+            return next(it.islice(it.ifilter(lambda b: b.get_state() == state, self._builds.itervalues()), ordinal, None), None)
+        else:
+            return next(it.islice(self._builds.itervalues(), ordinal, None), None)
+
+    def get_errors(self):
+        with self.lock:
+            return json.dumps({
+                build.name(): build.get_error()
+                    for build in self._builds.itervalues() if build.is_error()
+            }, indent=2)
+
+    def write_out_files(self):
+        with self.lock:
+            files = { state: tempfile.NamedTemporaryFile(delete=False) for state in Build.states }
+            for build in self._builds.itervalues():
+                files[build.get_state()].write(build.to_string() + '\n')
+            for state, tmp in files.iteritems():
+                os.rename(tmp.name, BuildManager.get_filename(state, self.directory))
+
+def find_dependencies(command, exclude_dirs = []):
+    parser = ArgumentParser()
+    parser.add_argument('-o')
+    _, args = parser.parse_known_args(shlex.split(command['command']))
+    args += [ '-E' ]
+
+    dependencies = set()
+    p = subprocess.Popen(args, cwd=command['directory'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    for line in p.stdout:
+        m = re.search('^\#\s+\d+\s+"(.*)"', line)
+        if m:
+            dep = os.path.abspath(m.group(1))
+            if dep.startswith(os.getcwd()) and not len([ e for e in exclude_dirs if dep.startswith(e) ]):
+                dependencies.add(dep)
+
+    _, err = p.communicate()
+    if p.returncode != 0:
+        print "Failed to preprocess %s:\n" % (command['file']), err
+        return command, None
+
+    return command, dependencies
+
+class EventHandler(pyinotify.ProcessEvent):
+    def __init__(self, fname, directory, exclude_dirs, processes, local_address):
+        self.deps = {}
+        self.commands = []
+        self.lock = RLock()
+        self.cores = processes
+        self.directory = os.path.abspath(directory)
+        self.exclude_dirs = exclude_dirs
+        self.build_manager = BuildManager()
+
+        if local_address is not None:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.bind(local_address)
+            sock.listen(1)
+            def Serve():
+                try:
+                    while True:
+                        conn, addr = sock.accept()
+                        print "Sending failed builds to %s:%s" % addr
+                        conn.send(self.build_manager.get_errors())
+                        conn.close()
+                except:
+                    import traceback
+                    traceback.print_exc()
+                finally:
+                    sock.shutdown(socket.SHUT_RDWR)
+                    sock.close()
+            print "Listening on %s:%s" % local_address
+            Thread(target=Serve).start()
+
+        def file_writer():
+            while True:
+                self.build_manager.write_out_files()
+                sleep(1)
+        Thread(target=file_writer).start()
+
+        print "Starting %d compile workers..." % processes
+        self.pool = ThreadPool(processes=processes)
+
+        self.commands_file = fname
+        self.refresh_commands()
+
+        self.build_all()
+
+        print "Ready to accept events"
+        super(EventHandler, self).__init__()
+
+    def build_all(self):
+        print "Building objects"
+        with self.lock:
+            self.deps = {}
+            total = len(self.commands.values())
+            percent = 0
+            for i, build in enumerate(self.ibuild(self.commands.values())):
+                if i * 100 / total == percent:
+                    print '[%d%%]' % percent
+                    percent = percent + 5
+                if build.is_error():
+                    print build.to_string(True),
+                self.update_deps(build.command, build.deps)
+            print '[100%]'
+        self.build_manager.reap()
+
+    def update_deps(self, command, deps):
+        if deps:
+            with self.lock:
+                fname = command['file']
+                old_deps = command.get('deps', set())
+                command['deps'] = deps
+                for dep in old_deps:
+                    try:
+                        self.deps[dep].remove(fname)
+                        if len(self.deps[dep]) == 0:
+                            del self.deps[dep]
+                    except KeyError:
+                        pass
+                for dep in deps:
+                    try:
+                        self.deps[dep] = self.deps.get(dep, set()) | set([fname])
+                    except:
+                        import traceback
+                        traceback.print_exc()
+                        print json.dumps(deps, indent=2, default=lambda x: '...')
+
+    def refresh_commands(self):
+        self.deps = {}
+        with self.lock:
+            with open(self.commands_file, 'r') as f:
+                commands = json.loads(f.read())
+                self.commands = { entry['file']: entry for entry in commands }
+
+    def ibuild(self, commands):
+        builds = [ self.build_manager.create_build(command) for command in commands ]
+        for build in self.pool.imap_unordered(Build.run, builds):
+            yield build
+        return
+
+    def build(self, commands):
+        return [ b for b in self.ibuild(commands) ]
+
+    def process_IN_CLOSE_WRITE(self, event):
+        global g_lock, g_queued, g_queuedFile
+        fname = os.path.abspath(event.pathname)
+        if fname == self.commands_file:
+            with self.lock:
+                self.refresh_commands()
+                self.build_all()
+        else:
+            with self.lock:
+                try:
+                    files = self.deps[fname]
+                except KeyError:
+                    return
+
+            commands = [ self.commands[f] for f in files ]
+
+            def process_files():
+                for build in self.ibuild(commands):
+                    with self.lock:
+                        print build.to_string(True),
+                        self.update_deps(build.command, build.deps)
+                    self.build_manager.reap()
+
+            Thread(target=process_files).start()
+
+    def shutdown(self):
+        self.pool.terminate()
+        self.pool.join()
+
+if __name__ == '__main__':
+    parser = ArgumentParser(description='Continuous build helper for C and C++ using CMake')
+    parser.add_argument('--directory', '-d', type=str, default=os.getcwd(), help='Root directory of the project')
+    parser.add_argument('--exclude-dir', '-e', dest='exclude', action='append', default=[], help='Directory to exclude')
+    parser.add_argument('--compile-commands', '-f', type=str, default=os.path.join(os.getcwd(), 'compile_commands.json'), help='JSON file produced by CMake')
+    parser.add_argument('--cores', '-j', type=int, default=cpu_count() / 2, help='Number of cores to use')
+    parser.add_argument('--watch', '-w', type=str, choices=Build.states, default=None, help='Output file to watch')
+    parser.add_argument('--port', '-P', type=int, default=None, help='Port to expose')
+    parser.add_argument('--host', type=str, default='0.0.0.0', help='Host to bind')
+    options = parser.parse_args()
+
+    os.chdir(options.directory)
+    exclude = [ os.path.join(options.directory, exclude_dir) for exclude_dir in options.exclude ]
+
+    if options.watch:
+        BuildManager.watch(options.watch)
+        exit(0)
+
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    g_pool = Pool(processes=options.cores)
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+    mask = pyinotify.IN_CLOSE_WRITE
+
+    try:
+        watcher = pyinotify.WatchManager()
+        commands_file = os.path.join(options.directory, options.compile_commands)
+        handler = EventHandler(commands_file, options.directory, options.exclude, options.cores,
+                               (options.host, options.port) if options.port is not None else None)
+        notifier = pyinotify.ThreadedNotifier(watcher, handler)
+        watcher.add_watch(options.directory, mask, rec=True)
+
+        notifier.start()
+
+        while True:
+            try:
+                line = int(raw_input()) - 1
+                build = handler.build_manager.get_nth(line, 'error')
+                print build.to_string(True)
+            except (ValueError, AttributeError):
+                pass
+    except KeyboardInterrupt:
+        pass
+
+    print "Beginning shutdown"
+    notifier.stop()
+    handler.shutdown()
+    print "Shutdown complete"
+

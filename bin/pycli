@@ -1,0 +1,11 @@
+#!/usr/bin/python
+
+import socket
+
+line = raw_input()
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.connect(('localhost', 50000))
+sock.send(line)
+reply = sock.recv(16384)
+sock.close()
+print reply

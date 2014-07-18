@@ -1,0 +1,30 @@
+#!/bin/bash
+
+cluster () {
+    current_pane=$(tmux list-panes -F '#{?pane_active,active,} #{pane_id}' | grep active | awk '{ print $2 }')
+
+    this_tty=$(ps -o tty= --pid $$)
+    this_pane=$(tmux list-panes -F '#{pane_tty} #{pane_id}' | grep "$this_tty" | awk '{ print $2 }')
+
+    name=$1
+    port=$2
+    leaves=$3
+
+    replay destroy --pattern "${name}.*"
+    replay cluster 1 $leaves $port --names $name
+
+    master_port=$port
+    port=$((port + leaves))
+
+    leaves=$((leaves - 1))
+    for i in $(seq $leaves -1 0); do
+        p=$((100 / (i + 2) ))
+        tmux split-window -t $this_pane -p $p "_provision ${name}.leaf$i 'port=$port'"
+        port=$((port - 1))
+    done
+
+    tmux select-pane -t $current_pane
+
+    _provision ${name}.master "master-aggregator" "port=$master_port"
+}
+

@@ -1,0 +1,35 @@
+#!/bin/bash
+
+if [ ! -z $(git status --porcelain) ]; then
+    echo "Uncommitted changes!  Aborting squash" 1>&2
+    exit 1
+fi
+
+squashBase=$(git rev-parse --verify $1)
+HEAD=$(git rev-parse HEAD)
+
+if [ $(git merge-base $HEAD $squashBase) != "$squashBase" ]; then
+    echo "$squashBase is not an ancestor of $HEAD" 1>&2
+    exit 1
+fi
+
+try () {
+    $@
+    e=$?
+    if [ $e != 0 ]; then
+        echo "'$@' failed with exit status $e" 1>&2
+        git reset --hard $HEAD
+        exit $e
+    fi
+    return 0
+}
+
+temp=$(mktemp)
+trap "rm $temp" EXIT
+
+messageCommit=$(git log --pretty=oneline master..HEAD | tail -n1 | cut -d' ' -f1)
+try git show -s --format=%B $messageCommit > $temp
+
+try git reset --soft $squashBase
+
+try git commit --allow-empty -a -F $temp

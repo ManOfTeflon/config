@@ -1,0 +1,254 @@
+#!/usr/bin/env python
+
+""" Script for managing the lifetimes of servers inside tmux sessions """
+
+from actions import Argument, PositionalArgument, Action, execute, ParseError
+from subprocess import check_output, check_call, Popen, PIPE
+import os
+import psutil
+import signal
+import pipes
+import time
+import json
+
+config_dir = os.path.join(os.environ['HOME'], '.run')
+config_file = os.path.join(config_dir, 'servers.cfg')
+config_refs = 0
+
+class Config(dict):
+    @staticmethod
+    def List(cls, l):
+        r = []
+        for i in l:
+            if isinstance(i, dict):
+                r.append(Config(i))
+            elif isinstance(i, list):
+                r.append(Config.List(i))
+            else:
+                r.append(i)
+        return r
+
+    def __init__(self, d):
+        dict.__init__(self, d)
+        for k, v in self.iteritems():
+            if isinstance(v, dict):
+                self[k] = Config(v)
+            elif isinstance(v, list):
+                self[k] = Config.List(v)
+
+    def __getattr__(self, attr):
+        return self[attr]
+
+    def __setattr__(self, attr, value):
+        self[attr] = value
+
+def write_config(func):
+    def do_it(*args, **kwargs):
+        global config, config_refs
+        try:
+            func(*args, **kwargs)
+        finally:
+            config_refs -= 1
+            if not config_refs:
+                open(config_file, 'w').write(json.dumps(config))
+                del config
+    return do_it
+
+def read_config(func):
+    def do_it(*args, **kwargs):
+        global config, config_refs
+        if not config_refs:
+            try:
+                globals()['config'] = Config(json.loads(open(config_file, 'r').read()))
+            except:
+                globals()['config'] = Config({'servers': {}})
+        config_refs += 1
+        func(*args, **kwargs)
+    return do_it
+
+def with_config(func):
+    return read_config(write_config(func))
+
+config = Config({})
+
+@with_config
+@Action
+def start(
+        name=Argument(short='n', default=None),
+        gdb=Argument(short='g', action='store_true'),
+        link=Argument(short='L', action='store_true'),
+        port=Argument(short='P', type=int, default=None),
+        timeout=Argument(type=int, default=10),
+        *cmd):
+    """
+    Start a server
+    """
+    global config
+    if name is None:
+        name = cmd[0]
+    name = filter(lambda c: c.isalnum() or c in [ '_' ], name)
+    if gdb:
+        cmd = [ 'exterminate', '-r' ] + list(cmd)
+    del os.environ['TMUX']
+    cmd = ' '.join([ pipes.quote(arg) for arg in cmd ])
+    if Popen([ 'tmux', 'new', '-d', '-n', name, '-s', name, cmd ]).wait() != 0:
+        print "Could not start tmux session!"
+        exit(1)
+    pid = int(check_output("tmux list-panes -s -t '%s' -F '#{pane_pid}' | head -n1" % name, shell=True))
+    window = check_output("tmux list-windows -t '%s' -F '#{session_id}:#{window_id}' | head -n1" % name, shell=True).rstrip()
+    if gdb:
+        exterminate = psutil.Process(pid)
+        gdb_pid = None
+        while True:
+            for child in exterminate.get_children():
+                try:
+                    if child.exe == check_output('which gdb', shell=True).rstrip():
+                        gdb_pid = child.pid
+                        break
+                except:
+                    pass
+            if gdb_pid is not None:
+                break
+            time.sleep(0.1)
+        pid = gdb_pid
+    config.servers[name] = { 'name': name, 'cmd': ' '.join(cmd), 'pid': int(pid), 'debug': gdb, 'window': window }
+    start = time.time()
+    while True:
+        try:
+            psutil.Process(pid)
+            if port is not None:
+                lsof = Popen("lsof -i :%d -s TCP:LISTEN -t" % port, shell=True, stdout=PIPE)
+                port_pid, _ = lsof.communicate()
+                if lsof.returncode == 0:
+                    port_service = psutil.Process(int(port_pid))
+                    assert port_service.pid == pid or port_service.ppid == pid, (
+                            "Pid %d(%s) is already listening on port %d" % (port_service.pid, port_service.name, port))
+                    break
+            else:
+                break
+        except OSError:
+            pass
+        finally:
+            time.sleep(0.1)
+            if time.time() - start > timeout:
+                print "Failed to start process in %d seconds!" % timeout
+                exit(1)
+    if link:
+        globals()['link'](name)
+
+@with_config
+@Action
+def stop(name=PositionalArgument()):
+    """
+    Stop an already running server
+    """
+    global config
+    if name not in config.servers:
+        print "No such server!"
+        exit(1)
+    server = config.servers[name]
+    process = psutil.Process(server.pid)
+    if server.debug:
+        for child in process.get_children():
+            child.kill()
+            child.wait()
+        process.kill()
+        process.wait()
+    else:
+        process.send_signal(signal.SIGQUIT)
+        try:
+            process.wait(timeout=3)
+        except:
+            process.kill()
+            process.wait()
+    del config.servers[name]
+
+@read_config
+@Action
+def watch(
+        name=PositionalArgument(),
+        replace=Argument(short='r', action='store_true'),
+        link=Argument(short='L', action='store_true')
+        ):
+    """
+    Attach the tmux session for a running server
+    """
+    if name not in config.servers:
+        print "No such server!"
+        exit(1)
+    server = config.servers[name]
+    if link:
+        return globals()['link'](name, True)
+    if replace:
+        check_call(['tmux', 'switch-client', '-t', server.name])
+    else:
+        del os.environ['TMUX']
+        check_call(['urxvt', '-e', 'bash', '-c', "tmux attach -t '%s'" % server.name])
+
+@read_config
+@Action
+def pid(name=PositionalArgument()):
+    """
+    Get the pid for the running server
+    """
+    global config
+    if name not in config.servers:
+        print "No such server!"
+        exit(1)
+    print config.servers[name].pid
+
+@with_config
+@Action
+def link(
+        name=PositionalArgument(),
+        forground=Argument(short='f', action='store_true')
+        ):
+    """
+    Link the tmux window for this service to the current session
+    """
+    global config
+    if name not in config.servers:
+        print "No such server!"
+        exit(1)
+    server = config.servers[name]
+    cmd = [ 'tmux', 'link-window' ]
+    if not forground:
+        cmd.append('-d')
+    cmd += [ '-s', server.window ]
+    check_call(cmd)
+
+@read_config
+@Action
+def show():
+    """
+    Show the running servers
+    """
+    global config
+    for server in config.servers:
+        print server
+
+@Action
+def ls():
+    """
+    Alias for show
+    """
+    return show()
+
+@with_config
+def reap():
+    global config
+    servers = config.servers.copy()
+    for name, server in servers.iteritems():
+        try:
+            psutil.Process(server.pid)
+        except:
+            del config.servers[name]
+
+if __name__ == '__main__':
+    reap()
+    try:
+        execute()
+    except ParseError:
+        raise SystemExit(1)
+    reap()
+

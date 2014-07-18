@@ -1,0 +1,689 @@
+#!/usr/bin/python
+
+"""\
+Python script for managing MemSQL instances for developers
+"""
+
+import os
+import re
+import json
+import time
+import pipes
+import shlex
+import readline
+import itertools as it
+from fcntl import flock, LOCK_UN, LOCK_SH, LOCK_EX
+from actions import Context, Argument, PositionalArgument, Main, execute, ParseError
+from threading import RLock
+from multiprocessing import cpu_count
+from multiprocessing.dummy import Pool
+from subprocess import check_output
+from memsql.common import database
+
+config_dir = os.path.join(os.environ['HOME'], '.replay')
+config_file = os.path.join(config_dir, 'servers.cfg')
+lock_file = open(os.path.join(config_dir, 'servers.lock'), 'w')
+history_path = os.path.join(config_dir, 'history')
+config_refs = 0
+
+context = Context(pattern=Argument())
+thread_pool = Pool(cpu_count())
+
+class Config(dict):
+    @staticmethod
+    def List(l):
+        r = []
+        for i in l:
+            if isinstance(i, dict):
+                r.append(Config(i))
+            elif isinstance(i, list):
+                r.append(Config.List(i))
+            else:
+                r.append(i)
+        return r
+
+    def __init__(self, d):
+        dict.__init__(self, d)
+        for k, v in self.iteritems():
+            if isinstance(v, dict):
+                self[k] = Config(v)
+            elif isinstance(v, list):
+                self[k] = Config.List(v)
+
+    def __getattr__(self, attr):
+        return self[attr]
+
+    def __setattr__(self, attr, value):
+        self[attr] = value
+
+    def pretty(self, indent = 0):
+        ret = [ ]
+        for k, v in self.iteritems():
+            l = '  ' * indent + k + ':'
+            if isinstance(v, Config):
+                ret += [ l ] + v.pretty(indent + 1)
+            else:
+                ret += [ l + ' ' + str(v) ]
+        return ret
+
+config = None
+
+def read_config(func):
+    def do_it(*args, **kwargs):
+        if not read_config.refs:
+            flock(lock_file, LOCK_SH)
+
+            try:
+                globals()['config'] = Config(json.loads(open(config_file, 'r').read()))
+            except:
+                globals()['config'] = Config({'servers': {}, 'next_port': 10000, 'default': []})
+        read_config.refs += 1
+        try:
+            return func(*args, **kwargs)
+        finally:
+            read_config.refs -= 1
+            if not read_config.refs:
+                del globals()['config']
+                flock(lock_file, LOCK_UN)
+    return do_it
+read_config.refs = 0
+
+def write_config(func):
+    @read_config
+    def do_it(*args, **kwargs):
+        global config
+        if not write_config.refs:
+            time.sleep(1)
+            flock(lock_file, LOCK_EX)
+            time.sleep(1)
+        write_config.refs += 1
+        try:
+            return func(*args, **kwargs)
+        finally:
+            write_config.refs -= 1
+            if not write_config.refs:
+                open(config_file, 'w').write(json.dumps(config))
+                flock(lock_file, LOCK_SH)
+    return do_it
+write_config.refs = 0
+
+class ReplayError(Exception):
+    pass
+
+class Option(object):
+    def __eq__(self, other):
+        return self is other
+
+Option.no_config = Option()
+Option.static_config = Option()
+Option.read_config = Option()
+Option.no_names = Option()
+Option.no_expand = Option()
+Option.no_split = Option()
+
+class ReplayAction(object):
+    class List(dict):
+        def __getitem__(self, item):
+            if item not in self:
+                raise ReplayError("No such command")
+            return dict.__getitem__(self, item)
+    actions = List()
+
+    def __init__(self, *args):
+        self.options = args
+
+    def __call__(self, f):
+        ReplayAction.actions[f.__name__] = self
+        self.func = context.Action(f)
+        self.action = getattr(context, f.__name__)
+
+        if Option.read_config in self.options:
+            assert Option.no_config not in self.options
+            self.func = read_config(self.func)
+        elif Option.no_config not in self.options:
+            self.func = write_config(self.func)
+
+        class _Action(object):
+            def __init__(self, action):
+                self._action = action
+
+            def __getattr__(self, attr):
+                return getattr(self._action, attr)
+
+            def __call__(self, *args, **kwargs):
+                return self.func(*args, **kwargs)
+
+        return _Action(self)
+
+    def name(self):
+        return self.func.__name__
+
+    def execute(self, pattern, body=None, verbose=True):
+        args = self.format_args(pattern, body)
+        if verbose:
+            print ' '.join(pipes.quote(s) for s in [ __file__, self.action.get_name() ] + args)
+        self.action.execute(args)
+
+    def format_args(self, pattern, body):
+        args = []
+        matches = self.expand(pattern)
+        if context.global_arguments.pattern is not None:
+            if pattern is not None:
+                raise ReplayError("Cannot specify two patterns")
+            pattern = context.global_arguments.pattern
+
+        if Option.no_names not in self.options and matches:
+            args += [ '--names' ] + matches
+        if body is not None:
+            if Option.no_split in self.options:
+                args += [ '--' ]
+                args += [ body ]
+            else:
+                if not body.startswith('--'):
+                    body = '-- ' + body
+                args += shlex.split(body)
+        return args
+
+    @read_config
+    def expand(self, pattern):
+        global config
+        names = []
+        if Option.no_names in self.options:
+            if pattern is not None:
+                raise ReplayError(self.name() + " accepts no destination nodes")
+            return
+        if pattern is None:
+            return config.default
+
+        if Option.no_expand not in self.options:
+            pattern = '^' + pattern.replace('.', '\.').replace("*", ".*").replace(",", "|").replace("{", "(").replace("}", ")") + '$'
+            names = names + [ name for name in config.servers.iterkeys() if re.match(pattern, name) ]
+        else:
+            def FindMatchedBraces(text, position=-1):
+                start = text.find('{')
+                if start < 0:
+                    start, position = (None, None)
+                else:
+                    depth = 1
+                    position = start
+                    while depth:
+                        next_out = text.find('}', position + 1)
+                        next_in = text.find('{', position + 1)
+                        if next_out < 0 and next_in < 0:
+                            break
+                        next_out = next_out if next_out >= 0 else len(text)
+                        next_in = next_in if next_in >= 0 else len(text)
+                        if next_out < next_in:
+                            depth -= 1
+                            position = next_out
+                        else:
+                            depth += 1
+                            position = next_in
+                    if depth != 0:
+                        raise ReplayError("Unmatched '{'")
+                return start, position
+
+            def ExpandNoMatching(text):
+                start, end = FindMatchedBraces(text)
+                if start is None:
+                    if text.find('}') >= 0:
+                        raise ReplayError("Unmatched '}'")
+                    return text.split(',')
+                begin, middle, end = text[:start], text[start + 1:end], text[end + 1:]
+                begin = begin.split(',')
+                middle = ExpandNoMatching(middle)
+                end = ExpandNoMatching(end)
+                return [ mb + mo + me for mb in begin for mo in middle for me in end ]
+
+            names = ExpandNoMatching(pattern)
+        return names
+
+class Completer:
+    def __init__(self):
+        keywords = open("/home/mandrews/Projects/memsql/memsqltest/script_tests/keywords_ddl_parser.txt").read().splitlines()
+        keywords = keywords + [ word.lower() for word in keywords ]
+        self.keywords = keywords
+        self.prefix = None
+
+    @write_config
+    def complete(self, prefix, index):
+        if prefix != self.prefix:
+            tokens = readline.get_line_buffer().split(">", 1)
+            tokens = tokens[0].split(":") + [ token for region in tokens[1:] for token in region.split() ]
+            if len(tokens) == 0:
+                return
+            elif len(tokens) == 1:
+                options = ReplayAction.actions.keys() + self.keywords
+            elif len(tokens) == 2:
+                global config
+                options = config.servers.keys()
+            else:
+                options = self.keywords
+            self.matching_words = [w for w in options if w.startswith(tokens[-1])]
+            self.prefix = prefix
+        try:
+            return self.matching_words[index]
+        except IndexError:
+            return None
+
+@read_config
+def ParseLine(line):
+    if len(line.split()) == 0:
+        return
+
+    m = re.match(r'^([a-zA-Z_]*)(:([0-9a-z\._,\*{}]*))?>\s*(.*)|(.*)$', line, re.M|re.I)
+    command = m.group(1) if m.group(1) else "sql"
+    pattern = m.group(3) if m.group(2) else None
+    body = m.group(4) if m.group(4) else m.group(5)
+
+    try:
+        ReplayAction.actions[command].execute(pattern, body)
+    except ParseError as e:
+        print str(e)
+    except ReplayError as e:
+        raise ReplayError("Error processing command '%s': %s" % (command, str(e)))
+    except KeyboardInterrupt:
+        raise
+    except:
+        import traceback
+        print 'Unexpected exception in client:\n'
+        traceback.print_exc()
+
+def SetNestedDict(d, k, v):
+    if len(k) == 1:
+        d[k[0]] = v
+    else:
+        inner = d.get(k[0], {})
+        SetNestedDict(inner, k[1:], v)
+        d[k[0]] = inner
+
+def FormatSqlValue(value):
+    if value is None:
+        return "NULL"
+    # if type(value) == "date":
+    #     return value.isoformat()
+    # if type(value) == "datetime":
+    #     return value.isoformat()
+    return str(value)
+
+def FormatSqlTable(result, rotate=False):
+    if len(result) == 0 and not rotate:
+        ret = ["Empty Set"]
+    else:
+        values = [[FormatSqlValue(row[column]) for column in row] for row in result]
+
+        footer = "%d row%s in set" % (len(values), "" if len(values) == 1 else "s")
+
+        if not rotate:
+            widths = [max(len(result.fieldnames[i]), max([len(row[i]) for row in values])) for i in xrange(len(result.fieldnames))]
+            separator = '+' + ''.join(['-' * (width+2) + '+' for width in widths])
+            format_string  = "| " + " | ".join(["{%d:%d}" % (i, widths[i]) for i in range(len(widths))]) + " |"
+
+            ret  = [separator]
+            ret += [format_string.format(*result.fieldnames)]
+            ret += [separator]
+            ret += [format_string.format(*row) for row in values]
+            ret += [separator]
+            ret += [footer]
+        else:
+            values = [[ field for field in result.fieldnames ]] + values
+            values = zip(*values)
+
+            widths = [max([len(row[i]) for row in values]) for i in xrange(len(values[0]))]
+            separator = '+' + ''.join(['-' * (width+2) + '+' for width in widths])
+            format_string  = "| " + " | ".join(["{%d:%d}" % (i, widths[i]) for i in range(len(widths))]) + " |"
+
+            ret  = [separator]
+            for row in values:
+                ret += [ format_string.format(*row), separator ]
+            ret += [footer]
+
+    return ret
+
+def FormatSqlResult(result, rotate=False):
+    if isinstance(result, database.SelectResult):
+        table = FormatSqlTable(result, rotate=rotate)
+        return [ i for i in it.chain(*[ row.split('\n') for row in table ]) ]
+    elif isinstance(result, long):
+        return [ "Query OK, %d rows affected" % result ]
+    else:
+        return [ str(result) ]
+
+def NormalizeSqlResult(results, rotate=False):
+    groups = {}
+    for name, result in results:
+        output = tuple(FormatSqlResult(result, rotate=rotate))
+        nodes = groups.get(output, [])
+        groups[output] = nodes + [ name ]
+    return [[', '.join(group) + ":"] + list(output) for output, group in groups.iteritems()]
+
+def PrintSql(results, padding=2, rotate=False):
+    output = NormalizeSqlResult(results, rotate=rotate)
+    output.sort(cmp=lambda x, y: cmp(x[0], y[0]))
+
+    console_width = int(check_output('tput cols'.split()))
+    margin = console_width
+    groups = []
+    for rows in output:
+        width = max([len(row) for row in rows])
+        if width + margin < console_width:
+            groups[-1] = groups[-1] + [ (width, rows) ]
+        else:
+            groups = groups + [[ (width, rows) ]]
+            margin = 0
+        margin = margin + width + padding
+
+    for group in groups:
+        height = max([len(rows) for width, rows in group])
+        for rowno in range(height):
+            for width, rows in group:
+                row = rows[rowno] if rowno < len(rows) else ""
+                print ("%-*s" % (width + padding, row)),
+            print
+        print
+
+@read_config
+def Connect(name, reconnect=False):
+    global config
+    if name not in Connect.locks:
+        with Connect.lock:
+            Connect.locks[name] = RLock()
+
+    if reconnect and name in Connect.connections:
+        with Connect.locks[name]:
+            print "Closing old connection to " + name
+            Connect.connections[name].close()
+            del Connect.connections[name]
+
+    if name not in Connect.connections:
+        with Connect.locks[name]:
+            print "Opening new connection to " + name
+            server = config.servers[name]
+            Connect.connections[name] = database.connect(host=server.host, port=server.port, user='root')
+    return Connect.locks[name], Connect.connections[name]
+Connect.connections = { }
+Connect.locks = { }
+Connect.lock = RLock()
+
+@read_config
+def TemplatizeLocal(line, name, **kwargs):
+    global config
+    server = config.servers[name]
+    return line % dict(server, **kwargs)
+
+def ParseDict(args):
+    kwargs = {}
+    name = None
+    for arg in args:
+        if arg.startswith('--'):
+            name = None
+        if name is None:
+            if not args[0].startswith('--'):
+                raise ReplayError('Invalid argument: ' + arg)
+            name = arg[len('--'):]
+            if '=' in name:
+                name, val = name.split('=', 2)
+                kwargs[name] = [ val ]
+                name = None
+        else:
+            val = arg
+            if name in kwargs:
+                kwargs[name].append(val)
+            else:
+                kwargs[name] = [ val ]
+    return kwargs
+
+def Combinations(d):
+    return [
+            { name: val for name, val in instances }
+            for instances in it.product(
+                *it.starmap(
+                    lambda name, args: it.izip(it.repeat(name), args),
+                    d.iteritems()))
+        ]
+
+def Query(name_query):
+    name, query = name_query
+    start = None
+    reconnect=False
+    for _ in xrange(2):
+        try:
+            lock, conn = Connect(name, reconnect=reconnect)
+            start = time.time()
+            with lock:
+                return name, conn.query(query)
+        except database.OperationalError as (errno, errmsg):
+            if (errno == 2003 or errno == 2006):
+                print "Trying to reconnect to " + name
+                reconnect=True
+                start = None
+                continue
+            return name, "ERROR %d: %s" % (errno, errmsg)
+        except database.MySQLError as (errno, errmsg):
+            return name, "ERROR %d: %s" % (errno, errmsg)
+        finally:
+            if start is not None:
+                elapsed = time.time() - start
+                print "[:%s> %s -- %0.2f sec" % (name, query, elapsed)
+    raise ReplayError("Maximum retries exceeded connecting to node '%s'" % name)
+
+def RunQueries(queries, rotate=False):
+    groups = {}
+    for name, query in queries:
+        nodes = groups.get(query, [])
+        groups[query] = nodes + [ name ]
+
+    flat_queries = [ ]
+    for query, names in groups.iteritems():
+        print "[:%s> %s" % (','.join(names), query)
+        # TODO(mandrews): Pay attention to quotes
+        query = query.split('--')[0]
+        flat_queries += [ (name, query) for name in names ]
+    results = [ _ for _ in thread_pool.imap_unordered(Query, flat_queries) ]
+
+    PrintSql(results, rotate=rotate)
+
+# ========================================== ReplayActions follow ============================================ #
+
+names_arg = Argument(nargs='+', default=[])
+
+@ReplayAction(Option.read_config)
+def foreach(names=names_arg,
+        nodes=Argument(short='n'),
+        rotate=Argument(short='r', action='store_true'),
+        line=PositionalArgument(),
+        *args):
+    combinations = Combinations(ParseDict(args))
+    combinations = combinations if len(combinations) > 0 else [ { } ]
+
+    if not names and context.global_arguments.pattern is not None:
+        names = foreach.expand(context.global_arguments.pattern)
+    if nodes is not None:
+        nodes = foreach.expand(nodes)
+    else:
+        nodes = []
+
+    for combination in combinations:
+        queries = [ (name, TemplatizeLocal(line, dest, **combination)) for name in names for dest in nodes ]
+        RunQueries(queries, rotate=rotate)
+
+@ReplayAction(Option.no_split, Option.read_config)
+def sql(names=names_arg,
+        line=PositionalArgument()):
+    if not names and context.global_arguments.pattern is not None:
+        names = sql.expand(context.global_arguments.pattern)
+
+    RunQueries([ (name, line) for name in names ])
+
+@ReplayAction(Option.read_config)
+def template(names=names_arg,
+        rotate=Argument(short='r', action='store_true'),
+        line=PositionalArgument(),
+        *args):
+    combinations = Combinations(ParseDict(args))
+    combinations = combinations if len(combinations) > 0 else [ { } ]
+
+    if not names and context.global_arguments.pattern is not None:
+        names = template.expand(context.global_arguments.pattern)
+
+    for combination in combinations:
+        queries = [ (name, TemplatizeLocal(line, name, **combination)) for name in names ]
+        RunQueries(queries, rotate=rotate)
+
+@ReplayAction()
+def test(names=names_arg):
+    pass
+
+@ReplayAction()
+def destroy(
+        names=names_arg
+    ):
+    global config
+    if not names and context.global_arguments.pattern is not None:
+        names = destroy.expand(context.global_arguments.pattern)
+
+    for name in names:
+        del config.servers[name]
+
+@ReplayAction(Option.no_expand)
+def provision(
+        names=names_arg,
+        host_port=PositionalArgument(nargs='?')
+    ):
+    global config
+    if not names and context.global_arguments.pattern is not None:
+        names = provision.expand(context.global_arguments.pattern)
+    if host_port is None:
+        host, port = '127.0.0.1', it.count(config.next_port)
+    else:
+        try:
+            host, port = host_port.split(':')
+            port = it.count(int(port))
+        except ValueError:
+            raise ReplayError("Could not parse arguments")
+    if host == '':
+        host = '127.0.0.1'
+
+    def _provision(name):
+        server = Config({})
+        server.name = name
+        server.host = host
+        server.port = port.next()
+        return server
+    servers = map(_provision, names)
+
+    for server in servers:
+        config.servers[server.name] = server
+
+@ReplayAction(Option.no_expand)
+def cluster(
+        names=names_arg,
+        aggs=PositionalArgument(type=int),
+        leaves=PositionalArgument(type=int),
+        port=PositionalArgument(type=int)
+    ):
+    global config
+    if not names and context.global_arguments.pattern is not None:
+        names = cluster.expand(context.global_arguments.pattern)
+    for name in names:
+        nodes = [ ]
+        if aggs > 0:
+            nodes.insert(0, name + '.master')
+        nodes += [ name + '.leaf%d' % i for i in xrange(leaves) ]
+        nodes += [ name + '.agg%d' % i for i in xrange(aggs - 1) ]
+        provision(nodes, ':%d' % port)
+
+@ReplayAction(Option.read_config)
+def nodes(names=names_arg):
+    if not names and context.global_arguments.pattern is not None:
+        names = nodes.expand(context.global_arguments.pattern)
+    display = {}
+    for k, v in config.servers.iteritems():
+        if k in names:
+            SetNestedDict(display, k.split('.'), v)
+    print '\n'.join(Config(display).pretty())
+
+@ReplayAction()
+def default(names=names_arg):
+    global config
+    if not names and context.global_arguments.pattern is not None:
+        names = default.expand(context.global_arguments.pattern)
+    if names == None:
+        print config.default
+    else:
+        config.default = names
+
+@ReplayAction(Option.no_config, Option.no_names)
+def embed():
+    if embed.embedded:
+        raise ReplayError("Cannot nest embed commands")
+    embed.embedded = True
+
+    print __doc__
+    @read_config
+    def print_config():
+        global config
+        print '\n'.join(config.pretty())
+        print
+    print_config()
+
+    while True:
+        try:
+            line = raw_input("replay> ")
+            ParseLine(line)
+        except KeyboardInterrupt:
+            print
+            pass
+        except ReplayError as e:
+            print e
+        except EOFError:
+            print "Bye"
+            exit(0)
+
+embed.embedded = False
+
+@ReplayAction(Option.no_config, Option.no_names)
+def source(filename=PositionalArgument()):
+    for line in open(filename, 'r'):
+        try:
+            ParseLine(line)
+        except ReplayError as e:
+            print e
+            exit(1)
+        except KeyboardInterrupt:
+            print
+            return
+
+@ReplayAction(Option.no_config, Option.no_names)
+def help(command=PositionalArgument(nargs='?')):
+    if command is None:
+        context.execute(['--help'])
+    else:
+        ReplayAction.actions[command].action.execute(['--help'])
+
+@Main
+def main(input_file=Argument(short='i'), *command):
+    if len(command):
+        try:
+            context.execute(command)
+        except ReplayError as e:
+            print e
+            exit(1)
+    elif input_file is None:
+        context.execute(["embed"])
+    else:
+        context.execute(["source", input_file])
+
+if __name__ == '__main__':
+    completer = Completer()
+    readline.parse_and_bind("tab: complete")
+    readline.set_completer(completer.complete)
+    readline.read_history_file(history_path)
+
+    try:
+        execute()
+    except ParseError:
+        exit(2)
+    finally:
+        readline.write_history_file(history_path)
+

@@ -1,0 +1,659 @@
+#!/usr/bin/python
+import sys, re, subprocess, readline, json, atexit, os, string, traceback, time, threading, shlex
+import itertools as it
+from memsql.common import database
+
+config_dir = os.path.expanduser("~/.replay/")
+history_path = config_dir + 'history'
+config_path = config_dir + 'config.json'
+
+interactive = False
+all_nodes = {} # { 'mysql': { 'host': '127.0.0.1', 'port': 3307}, 'memsql': { 'host': '127.0.0.1', 'port': 3306 } }
+default = 'memsql'
+next_port_lock = threading.Lock()
+next_port = 10000
+connections = {}
+actions = {}
+
+def Sys(cmd, pipe=True, shell=False):
+    try:
+        if pipe:
+            return subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=shell), True
+        else:
+            return subprocess.call("%s" % cmd, stderr=subprocess.STDOUT, shell=shell) == 0
+    except subprocess.CalledProcessError as e:
+        return e.output, False
+
+def Err(message):
+    if linenum == 0:
+        return "Error during startup: " + message
+    else:
+        return "Error processing line %d: " % linenum + message
+
+def Node(command, nodes, body, git_hash=None, build=None, args=None):
+    global next_port, next_port_lock
+    tokens = body.split(":", 1)
+    for node in nodes:
+        next_port_lock.acquire()
+        assert node not in all_nodes, Err("Node '%s' already exists!" % node)
+        host = tokens[0]
+        if not host:
+            host = '127.0.0.1'
+        try:
+            port = int(tokens[1])
+        except:
+            port = next_port
+            next_port += 1
+        finally:
+            all_nodes[node] = { 'host': host, 'port': port }
+            if git_hash:
+                all_nodes[node]['hash'] = git_hash
+            if build:
+                all_nodes[node]['type'] = build
+            if args:
+                all_nodes[node]['args'] = args
+            next_port_lock.release()
+
+def ParseBuild(body):
+    tokens = body.split(None, 2)
+    git_hash = tokens[0] if len(tokens) > 0 and tokens[0] != '-' else ''
+    build_type = tokens[1] if len(tokens) > 1 and tokens[1] != '-' else ''
+    memsql_args = tokens[2] if len(tokens) > 2 else ''
+    git_hash, success = Sys("cd $PATH_TO_MEMSQL; git rev-parse %s" % (git_hash), shell=True)
+    git_hash = git_hash[:-1]
+    assert success, Err("No such git revision")
+    return git_hash, build_type, memsql_args
+
+def SwapBuild(command, names, body):
+    git_hash, build_type, _ = ParseBuild(body)
+    for name in names:
+        PlaceBuild(name, git_hash, build_type, replace=False)
+
+def ProvisionBuild(command, names, body):
+    git_hash, build_type, _ = ParseBuild(body)
+    for name in names:
+        PlaceBuild(name, git_hash, build_type, replace=True)
+
+def HotswapBuild(command, names, body):
+    git_hash, build_type, memsql_args = ParseBuild(body)
+    StopNodes(command, names, '')
+    SwapBuild(command, names, "%s %s" % (git_hash, build_type))
+    StartNodes(command, names, memsql_args)
+
+def PlaceBuild(name, git_hash, build_type, replace=True):
+    build_type = build_type if build_type else 'debug'
+    memsqlbin = "$PATH_TO_MEMSQL/memsqlbin"
+    if git_hash:
+        output, success = Sys([ config_dir + "produce_build", git_hash ])
+        assert success, Err("Failed to generate build: " + output)
+        memsqlbin = config_dir + "builds/" + git_hash + "_" + build_type
+
+    Sys("mkdir -p $PATH_TO_MEMSQL/bincache/" + name, shell=True)
+    output, success = Sys("cp -r %(memsqlbin)s/* $PATH_TO_MEMSQL/bincache/%(name)s" % locals(), shell=True)
+    assert success, Err("Could not create folder: " + output)
+    if replace:
+        Sys("rm -r $PATH_TO_MEMSQL/bincache/%s/*" % name, shell=True)
+    else:
+        Sys(""" cd $PATH_TO_MEMSQL/bincache/%s && \
+                (find . -path ./data -prune -o \
+                    ! -name '.' -print | \
+                xargs rm -rf)""" % (name), shell=True)
+    output, success = Sys("cp -r %(memsqlbin)s/* $PATH_TO_MEMSQL/bincache/%(name)s" % locals(), shell=True)
+    assert success, Err("Could not copy build: " + output)
+    print "Build for %s acquired." % name
+
+def CreateNode(name, body, existing=None):
+    assert name not in all_nodes, Err("Node '%s' already exists!" % name)
+    git_hash, build_type, memsql_args = ParseBuild(body)
+    PlaceBuild(name, git_hash, build_type)
+
+    Node('node', [ name ], '', git_hash=git_hash, build=build_type, args=memsql_args)
+
+    for failed in StartNodes('start', [ name ], memsql_args, existing):
+        del all_nodes[failed]
+
+def RestartNodes(command, nodes, body):
+    StopNodes(command, nodes, '')
+    StartNodes(command, nodes, body)
+
+def StartNodes(command, nodes, memsql_args, existing=None):
+    failed = []
+    for name in nodes:
+        if memsql_args == '':
+            try:
+                memsql_args = all_nodes[name]['args']
+            except KeyError:
+                all_nodes[name]['args'] = ''
+        else:
+            if memsql_args == '-':
+                memsql_args = ''
+            all_nodes[name]['args'] = memsql_args
+        memsql_args = shlex.split(memsql_args)
+        run_args = [ '-n', name ]
+        debug = '-g' in memsql_args or '--gdb' in memsql_args
+        if debug:
+            memsql_args = ' '.join([ a for a in memsql_args if a != '-g' and a != '--gdb'])
+            run_args += [ '-g' ]
+            memsql_args += [ '--debug-mode' ]
+        node = all_nodes[name]
+        host, port = (node['host'], node['port'])
+        assert host in ['127.0.0.1', 'localhost'], Err("Replay does not currently support starting remote servers")
+        memsql_args += [ '--port=%d' % port ]
+        run_args += [ '-P', port ]
+        print "Starting %s on port %d..." % (name, port)
+        success = Sys([ 'run', 'start' ] + run_args + [ os.path.join(os.environ['PATH_TO_MEMSQL'], '/bincache/%(name)s/memsqld' % name) ] + memsql_args, pipe=False)
+        if not success:
+            print "Failed to start " + name
+            failed += [ name ]
+
+        print "Node %s started on port %d" % (name, port)
+    return failed
+
+def CreateNodes(command, nodes, body, existing=None):
+    threads = [ threading.Thread(target=CreateNode, args=(name, body, existing)) for name in nodes ]
+    [ thread.start() for thread in threads ]
+    [ thread.join() for thread in threads ]
+
+def Attach(command, nodes, body):
+    master = body
+    for node in nodes:
+        node = all_nodes[node]
+        host, port = (node['host'], node['port'])
+        actions['sql'].Do(master, "add leaf root@'%s':%d" % (host, port))
+
+def Distribute(command, nodes, body):
+    cluster = nodes[0]
+    tokens = body.split(None, 2)
+    assert len(tokens) >= 2, Err("Distribute usage: aggs leaves [git_hash [build_type]]")
+    assert len([ name for name, node in all_nodes.iteritems() if name.startswith(cluster + '.')]) == 0, \
+            Err("Cluster name could collide with existing node(s)")
+    num_aggs = int(tokens[0])
+    num_leaves = int(tokens[1])
+    node_args = tokens[2] if len(tokens) > 2 else '- -'
+    leaves = [ cluster + '.leaf%d' % i for i in range(num_leaves) ]
+    out, success = Sys("run -n%s start $HOME/.replay/spin" % cluster)
+    assert success, Err("Couldn't open a new screen for %s: " % cluster + out)
+    try:
+        CreateNodes(command, leaves, node_args, cluster)
+        if num_aggs > 0:
+            master = cluster + '.master'
+            children = [ cluster + '.agg%d' % i for i in range(num_aggs - 1) ]
+            CreateNode(master, node_args + " --master-aggregator=self", cluster)
+            master_node = all_nodes[master]
+            master_host, master_port = (master_node['host'], master_node['port'])
+            Attach(command, leaves, master)
+            CreateNodes(command, children, node_args + " --master-aggregator='%s':%d" % (master_host, master_port), cluster)
+    finally:
+        out, success = Sys("run stop " + cluster)
+        assert success, Err("Couldn't stop spinner for %s: " % cluster + out)
+
+def KillNodes(command, names, line):
+    for name in names:
+        del all_nodes[name]
+    StopNodes(command, names, line)
+
+def StopNodes(command, names, line):
+    for name in names:
+        output, success = Sys("run stop %s" % (name))
+        if not success:
+            print output
+        try:
+            del connections[name]
+        except:
+            pass
+
+def Pretty(val, indent = 0):
+    if isinstance(val, dict):
+        print
+        for k, v in sorted(val.iteritems()):
+            print '  ' * indent + str(k) + ':',
+            Pretty(v, indent + 1)
+    elif isinstance(val, list):
+        print ', '.join(val)
+    else:
+        print str(val)
+
+def SetNestedDict(d, k, v):
+    if len(k) == 1:
+        d[k[0]] = v
+    else:
+        inner = d.get(k[0], {})
+        SetNestedDict(inner, k[1:], v)
+        d[k[0]] = inner
+
+def ListNodes(command, names, line):
+    nodes = {}
+    for k, v in all_nodes.iteritems():
+        if k in names:
+            SetNestedDict(nodes, k.split('.'), v)
+    Pretty(nodes)
+
+def Stuff(stuff, name):
+    print Sys("run -ereplay pipe %s '%s'" % (name, stuff))[0]
+
+def Gdb(command, names, line):
+    for name in names:
+        # Stuff("source ~/.repro/listen.py", "gdb.%s" % name)
+        # sleep(1)
+        # data = {'op': 'eval'}
+        for c in line.replace(";", "\n"):
+            # data['gdb'] = c
+            Stuff(c, "gdb.%s" % name)
+            # reply = Send(data, True, 50005)
+            # print reply
+        # data = {'op': 'quit'}
+        # Send(data, True, 50005)
+
+def Trap(command, names, line):
+    tokens = line.split("|", 1) + [""]
+    Gdb(command, names, "break %s; commands; %s; end; c;" % (tokens[0], tokens[1]))
+
+def Pause(command, names, line):
+    assert not line, Err("Pause expects no arguments")
+    for name in names:
+        print Sys("run int gdb.%s" % name)[0]
+
+def Continue(command, names, line):
+    assert not line, Err("Continue expects no arguments")
+    for name in names:
+        Stuff('c', 'gdb.%s' % name)
+
+def Eval(code):
+    return eval(code, globals(), globals())
+
+def Py(command, names, line):
+    exec(line, globals(), globals())
+
+def Print(command, names, line):
+    print Eval(line)
+
+def FormatSqlValue(value):
+    if value is None:
+        return "NULL"
+    # if type(value) == "date":
+    #     return value.isoformat()
+    # if type(value) == "datetime":
+    #     return value.isoformat()
+    return str(value)
+
+def FormatSqlTable(result):
+    if len(result) == 0:
+        ret = ["Empty Set"]
+    else:
+        values = [[FormatSqlValue(row[column]) for column in row] for row in result]
+        widths = [max(len(result.fieldnames[i]), max([len(row[i]) for row in values])) for i in xrange(len(result.fieldnames))]
+
+        separator = '+' + ''.join(['-' * (width+2) + '+' for width in widths])
+        format_string  = "| " + " | ".join(["{%d:%d}" % (i, widths[i])
+                                    for i in range(len(widths))]) + " |"
+        footer = "%d row%s in set" % (len(values), "" if len(values) == 1 else "s")
+
+        ret  = [separator]
+        ret += [format_string.format(*result.fieldnames)]
+        ret += [separator]
+        ret += [format_string.format(*row) for row in values]
+        ret += [separator]
+        ret += [footer]
+
+    return ret
+
+def FormatSqlResult(result):
+    if isinstance(result, database.SelectResult):
+        table = FormatSqlTable(result)
+        return [ i for i in it.chain(*[ row.split('\n') for row in table ]) ]
+    elif isinstance(result, long):
+        return [ "Query OK, %d rows affected" % result ]
+    else:
+        return [ str(result) ]
+
+def NormalizeSqlResult(results):
+    groups = {}
+    for name, result in results.iteritems():
+        output = tuple(FormatSqlResult(result))
+        nodes = groups.get(output, [])
+        groups[output] = nodes + [ name ]
+    return [[', '.join(group) + ":"] + list(output) for output, group in groups.iteritems()]
+
+def PrintSql(results, padding=2):
+    output = NormalizeSqlResult(results)
+    output.sort(cmp=lambda x, y: cmp(x[0], y[0]))
+
+    console_width = int(subprocess.check_output('tput cols'.split()))
+    margin = console_width
+    groups = []
+    for rows in output:
+        width = max([len(row) for row in rows])
+        if width + margin < console_width:
+            groups[-1] = groups[-1] + [ (width, rows) ]
+        else:
+            groups = groups + [[ (width, rows) ]]
+            margin = 0
+        margin = margin + width + padding
+
+    for group in groups:
+        height = max([len(rows) for width, rows in group])
+        for rowno in range(height):
+            for width, rows in group:
+                row = rows[rowno] if rowno < len(rows) else ""
+                print ("%-*s" % (width + padding, row)),
+            print
+        print
+
+def Reconnect(command, nodes, db):
+    for name in nodes:
+        try:
+            connections[name].close()
+        except KeyError:
+            pass
+        node = all_nodes[name]
+        host, port = (node['host'], node['port'])
+        if host is None or port is None:
+            return
+        connections[name] = database.connect(host=host, port=int(port), user='root', database=db)
+
+def Connect(name):
+    try:
+        return connections[name]
+    except KeyError:
+        actions['reconnect'].Do(name)
+        return connections[name]
+
+def TemplatizeLocal(sql, name):
+    node = all_nodes[name]
+    host, port = (node['host'], node['port'])
+    m = re.match(r'^(.*[^%])%([^%].*)|(.*)$', sql, re.M|re.I)
+    sql = m.group(1) if m.group(1) else m.group(3)
+    local = m.group(2) if m.group(2) else '{}'
+    local = dict(eval(local, globals()), **{'host': host, 'port': port, 'name': name})
+    return string.Template(sql).safe_substitute(dict(globals(), **local))
+
+def Sql(command, names, line):
+    queries = {}
+    for name in names:
+        # query = TemplatizeLocal(line, name)
+        query = line
+        nodes = queries.get(query, [])
+        queries[query] = nodes + [ name ]
+    results = {}
+    threads = []
+
+    def Query(name, query):
+        retries = 1
+        while True:
+            try:
+                conn = Connect(name)
+                break
+            except database.OperationalError as (errno, errmsg):
+                if (errno == 2003 or errno == 2006) and retries > 0:
+                    print "Trying to reconnect to " + name
+                    Reconnect(command, [ name ], '')
+                    retries -= 1
+                    continue
+                results[name] = "ERROR %d: %s" % (errno, errmsg)
+                return
+        assert conn, Err("Unable to connect to node '%s'" % name)
+        start = time.time()
+        try:
+            results[name] = conn.query(query)
+        except database.OperationalError as (errno, errmsg):
+            results[name] = "ERROR %d: %s" % (errno, errmsg)
+            if errno == 2013 and not interactive: #Server connection lost
+                exit(1)
+        except database.MySQLError as (errno, errmsg):
+            results[name] = "ERROR %d: %s" % (errno, errmsg)
+        elapsed = time.time() - start
+        print "[%s:%s> %0.2f sec" % (command, name, elapsed)
+
+    for query, names in queries.iteritems():
+        print "[%s:%s> %s" % (command, ','.join(names), query)
+        # TODO(mandrews): Pay attention to quotes
+        query = query.split('--')[0]
+        threads = threads + [ threading.Thread(target=Query, args=(name, query)) for name in names ]
+
+    [ t.start() for t in threads ]
+    [ t.join() for t in threads ]
+    PrintSql(results)
+
+def Default(command, names, line):
+    global default
+    if line:
+        default = line
+    else:
+        print default,
+
+def Confirm(message, default=False):
+    yes = set(['yes', 'y'])
+    no = set(['no', 'n'])
+    if default:
+        yes = yes.union([''])
+    else:
+        no = no.union([''])
+    options = 'Y/n' if default else 'y/N'
+    while True:
+        print "%s (%s)" % (message, options)
+        choice = sys.stdin.readline().replace('\n', '').lower()
+        if choice in yes:
+            return True
+        elif choice in no:
+            return False
+        else:
+            print "Please confirm with 'yes' or 'no'"
+
+def Expand(pattern, options):
+    names = []
+    if options is not None:
+        pattern = '^' + pattern.replace('.', '\.').replace("*", ".*").replace(",", "|").replace("{", "(").replace("}", ")") + '$'
+        names = names + [ name for name in options if re.match(pattern, name) ]
+    else:
+        def FindMatchedBraces(text, position=-1):
+            start = text.find('{')
+            if start < 0:
+                start, position = (None, None)
+            else:
+                depth = 1
+                position = start
+                while depth:
+                    next_out = text.find('}', position + 1)
+                    next_in = text.find('{', position + 1)
+                    if next_out < 0 and next_in < 0:
+                        break
+                    next_out = next_out if next_out >= 0 else len(text)
+                    next_in = next_in if next_in >= 0 else len(text)
+                    if next_out < next_in:
+                        depth -= 1
+                        position = next_out
+                    else:
+                        depth += 1
+                        position = next_in
+                assert depth == 0, Err("Unmatched '{'")
+            return start, position
+
+        def ExpandNoMatching(text):
+            start, end = FindMatchedBraces(text)
+            if start is None:
+                assert text.find('}') < 0, Err("Unmatched '}'")
+                return text.split(',')
+            begin, middle, end = text[:start], text[start + 1:end], text[end + 1:]
+            begin = begin.split(',')
+            middle = ExpandNoMatching(middle)
+            end = ExpandNoMatching(end)
+            return [ mb + mo + me for mb in begin for mo in middle for me in end ]
+
+        names = ExpandNoMatching(pattern)
+    if names == []:
+        print "Nothing matches the given pattern!"
+    return names
+
+class Action():
+    def __init__(self, command, action, default=None, numdests=False, nobody=False, echo=True, singleline=False, eol='', matchnodes=True):
+        global actions
+        actions[command] = self
+        self.default = default
+        self.eol = eol
+        self.command = command
+        self.action = action
+        self.numdests = numdests
+        self.nobody = nobody
+        self.echo = echo
+        self.singleline = singleline
+        self.matchnodes = matchnodes
+
+    def Do(self, pattern, body='', infile=sys.stdin):
+        pattern = pattern if pattern is not None else self.default if self.default is not None else default
+        names = self.Dest(pattern)
+        if self.echo:
+            print "[%s:%s> %s" % (self.command, ','.join(names), body if body is not None else ""),
+        if not self.singleline:
+            print
+        assert not self.nobody or not body, Err("Operator '%s' expects no arguments" % self.command)
+        body = body if body is not None else ''
+        self.action(self.command, names, body)
+        if self.singleline:
+            print
+
+    def Dest(self, pattern):
+        if not self.matchnodes:
+            assert '*' not in pattern, Err("Illegal token in server name")
+
+        matches = Expand(pattern, all_nodes.keys() if self.matchnodes else None)
+        assert not self.numdests or len(matches) == self.numdests, Err("Operator '%s' expects %d destination node(s)" % (self.command, self.numdests))
+        return matches
+
+def ParseLine(line, infile=sys.stdin):
+    global linenum, actions, default, interactive
+    linenum = linenum + 1
+    if len(line.split()) == 0:
+        return
+
+    m = re.match(r'^(%s)?(:([0-9a-z\._,\*{}]+))?>\s*(.*)|(.*)$' % '|'.join(actions.keys()), line, re.M|re.I)
+    command = m.group(1) if m.group(1) else "sql"
+    pattern = m.group(3)
+    body = m.group(4) if m.group(4) else m.group(5)
+
+    if command not in actions:
+        print Err("Unknown command " + command)
+        return
+    action = actions[command]
+    try:
+        action.Do(pattern, body, infile=infile)
+    except AssertionError as e:
+        if interactive:
+            print '\n'.join(e.args)
+        else:
+            raise
+    except (SystemExit, KeyboardInterrupt):
+        raise
+    except:
+        t, v, tb = sys.exc_info()
+        print 'Unexpected exception in client:\n' + ''.join(traceback.format_exception(t, v, tb)) + '\n'
+
+class Completer:
+    def __init__(self):
+        # keywords = open("/home/mandrews/Projects/memsql/parametrizer/keywords").read().splitlines()
+        keywords = [ ]
+        keywords = keywords + [ word.lower() for word in keywords ]
+        self.keywords = keywords
+        self.prefix = None
+    def complete(self, prefix, index):
+        global actions
+        if prefix != self.prefix:
+            tokens = readline.get_line_buffer().split(">", 1)
+            tokens = tokens[0].split(":") + [ token for region in tokens[1:] for token in region.split() ]
+            if len(tokens) == 0:
+                return
+            elif len(tokens) == 1:
+                options = actions.keys() + self.keywords
+            elif len(tokens) == 2:
+                options = all_nodes.keys()
+            else:
+                options = self.keywords
+            self.matching_words = [w for w in options if w.startswith(tokens[-1])]
+            self.prefix = prefix
+        try:
+            return self.matching_words[index]
+        except IndexError:
+            return None
+
+def Embed(command = 'embed', names = None, line = None):
+    global interactive, default, all_nodes
+    assert not interactive, Err("Cannot embed from interactive mode")
+    interactive = True
+    completer = Completer()
+    readline.parse_and_bind("tab: complete")
+    readline.set_completer(completer.complete)
+
+    def save_history():
+        readline.write_history_file(history_path)
+    atexit.register(save_history)
+
+    actions['nodes'].Do('*', None)
+    actions['default'].Do(None, None)
+    while True:
+        try:
+            line = raw_input("replay> ")
+            readline.write_history_file(history_path)
+            ParseLine(line, infile=sys.stdin)
+        except KeyboardInterrupt:
+            print
+            pass
+        except EOFError:
+            print "Bye"
+            exit(0)
+        with open(config_path, 'w') as nodes:
+            nodes.write(json.dumps({'nodes': all_nodes, 'default': default, 'next_port': next_port}, indent=4) + '\n')
+
+def Source(command = 'source', names = None, body = ""):
+    with open(body, 'r') as infile:
+        for line in infile:
+            try:
+                ParseLine(line, infile=infile)
+            except KeyboardInterrupt:
+                print
+                if interactive:
+                    return
+                else:
+                    Embed()
+
+Action('sql', Sql, echo=False, eol=';')
+Action('node', Node, matchnodes=False)
+Action('default', Default, numdests=0, singleline=True)
+Action('distribute', Distribute, default='cluster', numdests=1, matchnodes=False)
+Action('kill', KillNodes, nobody=True)
+Action('embed', Embed, numdests=0, nobody=True)
+Action('source', Source, numdests=0)
+Action('nodes', ListNodes, default='*', nobody=True, numdests=0, singleline=True)
+Action('print', Print, numdests=0)
+Action('gdb', Gdb)
+Action('py', Py, numdests=0)
+Action('trap', Trap, nobody=True)
+Action('create', CreateNodes, matchnodes=False)
+Action('start', StartNodes)
+Action('restart', RestartNodes)
+Action('swap', SwapBuild)
+Action('provision', ProvisionBuild)
+Action('hotswap', HotswapBuild)
+Action('stop', StopNodes, nobody=True)
+Action('reconnect', Reconnect)
+
+if __name__ == '__main__':
+    linenum = 0
+    if os.path.exists(history_path):
+        readline.read_history_file(history_path)
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as config_file:
+            try:
+                config = config_file.read()
+                config = json.loads(config)
+                all_nodes = { name: { key: val for key, val in node.iteritems() } for name, node in config['nodes'].iteritems() }
+                default = str(config['default'])
+                next_port = int(config['next_port'])
+            except:
+                print Err("Malformed configuration")
+
+    if len(sys.argv) == 1:
+        Embed()
+    elif len(sys.argv) == 2:
+        Source(body=sys.argv[1])
+    else:
+        print "Expect zero or one arguments"
+

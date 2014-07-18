@@ -1,0 +1,1 @@
+exec $PATH_TO_MEMSQL/lockfreetest/LockFreeTest --gtest_filter="$@"

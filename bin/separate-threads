@@ -1,0 +1,60 @@
+#!/usr/bin/python2
+
+import re
+from argparse import ArgumentParser
+import subprocess
+
+if __name__ == '__main__':
+    console_width = int(subprocess.check_output('tput cols'.split()))
+    padding = 2
+    indent = 0
+    lines = []
+    metadata = {}
+    parser = ArgumentParser()
+    parser.add_argument("file")
+    parser.add_argument("-t", dest='threads', nargs='+', type=int, default=None)
+    options = parser.parse_args()
+    for line in open(options.file, 'r'):
+        m = re.search('\d+ \d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d (\s*\w+): t(\d+) c([-\d]+) (.*)', line)
+        if m:
+            stream = m.group(1)
+            thread_id = int(m.group(2))
+            conn_id = int(m.group(3)) if m.group(3) != '-' else None
+            body = m.group(4)
+
+            if options.threads is not None and thread_id not in options.threads:
+                continue
+
+            if thread_id not in metadata:
+                metadata[thread_id] = { 'indent': indent }
+                indent += 1
+
+            prefix = '%s%s: ' % (stream, (' %d' % conn_id) if conn_id is not None else '')
+            lines += [ { 'indent': metadata[thread_id]['indent'], 'prefix': prefix, 'line': body } ]
+
+    if not len(metadata):
+        exit(1)
+
+    headers = [ ('Thread %d' % thread_id, m['indent']) for thread_id, m in metadata.iteritems() ]
+    headers.sort(key=lambda h: h[1])
+    width = console_width / len(headers)
+    width -= padding
+    first_line = ''
+    for header in headers:
+        first_line += '%-*s' % (width + padding, header[0])
+    print first_line
+
+    for line in lines:
+        trunc = width
+        indent = line['indent'] * (width + padding)
+        text = line['prefix'] + line['line']
+        first = True
+        while len(text) > 0:
+            chunk = text[:trunc]
+            text = text[len(chunk):]
+            print '%s%s' % (' ' * indent, chunk)
+            if first:
+                first = False
+                indent += len(line['prefix'])
+                trunc -= len(line['prefix'])
+

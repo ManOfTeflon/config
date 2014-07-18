@@ -1,0 +1,4 @@
+#!/bin/bash
+
+replay foreach --names $1.master --nodes "$1"'.leaf*' 'ADD LEAF root@"%(host)s":%(port)s'
+

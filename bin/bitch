@@ -1,0 +1,11 @@
+#!/bin/bash
+
+cmd="$@"
+if [ "$cmd" = "sudo" ]; then
+    cmd=$(history 2 | head -n1 | cut -d' ' -f4-)
+    echo "Yes sir.  Sorry sir.  Executing $cmd"
+    sudo $cmd
+else
+    echo "Yes sir.  Executing $cmd"
+    sudo $cmd
+fi

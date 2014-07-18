@@ -1,0 +1,24 @@
+#!/bin/bash
+[[ $_ != $0 ]] && main= || main=true
+
+provision () {
+    cd $PATH_TO_MEMSQL
+    rm -r bincache/$1 2>/dev/null
+    cp -r memsqlbin bincache/$1
+    cd bincache/$1
+    shift
+    for arg in $@; do
+        echo $arg >> memsql.cnf
+    done
+    clear
+    cat memsql.cnf
+}
+
+if [ -n "$main" ]; then
+    source $HOME/.bash_profile
+    provision "$@";
+    echo
+    echo -n "pwd "
+    pwd
+    exec bash --norc --noprofile
+fi

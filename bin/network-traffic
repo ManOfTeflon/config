@@ -1,0 +1,8 @@
+#!/bin/bash
+
+port=$((4010 + $(id -u)))
+netcat 127.0.0.1 $port
+if [ $? -ne 0 ]; then
+    network-monitor $port > /dev/null &
+    netcat 127.0.0.1 $port
+fi

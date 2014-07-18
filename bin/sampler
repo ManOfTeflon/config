@@ -1,0 +1,18 @@
+#!/bin/bash
+
+nsamples=10
+sleeptime=0.1
+pid=$(lsof -i tcp:$1 | awk 'NR!=1 {print $2}')
+
+for x in $(seq 1 $nsamples)
+  do
+    gdb -ex "set pagination 0" -ex "thread apply all bt" -batch -p $pid
+    sleep $sleeptime
+    echo $x >&2
+  done | \
+awk '
+  BEGIN { s = ""; } 
+  /^Thread/ { print s; s = ""; } 
+  /^\#/ { if (s != "" ) { s = s "," $4} else { s = $4 } } 
+  END { print s }' | \
+sort | uniq -c | sort -r -n -k 1,1

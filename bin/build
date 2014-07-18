@@ -1,0 +1,16 @@
+#!/bin/bash
+
+cd $PATH_TO_MEMSQL
+
+try () {
+    $@
+    e=$?
+    if (( e != 0 )); then
+        echo "Command '$@' failed!"
+        exit $e
+    fi
+}
+
+try choose_node
+try make -j 9
+try ./binplace -sn

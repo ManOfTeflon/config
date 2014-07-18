@@ -1,0 +1,84 @@
+#!/usr/bin/runhaskell
+import Control.Concurrent
+import Control.Monad
+import Data.Char
+import Data.IORef
+import Data.List
+import Data.List.Split
+import Data.Time.Clock
+import Data.Word
+import Network.Socket
+import System.Directory
+import System.Environment
+
+data Interface = Interface
+    { name      :: String
+    , tx        :: Int
+    , txDelta   :: Int
+    , rx        :: Int
+    , rxDelta   :: Int
+    } deriving (Show)
+
+main :: IO ()
+main = do
+    [port] <- getArgs
+    ref <- newIORef []
+    sock <- getSocket (read port)
+    forkIO (trackInterfaces ref)
+    respLoop sock ref
+
+getSocket :: Int -> IO Socket
+getSocket port = do
+    sock <- socket AF_INET Stream 0
+    setSocketOption sock ReuseAddr 1
+    bindSocket sock (SockAddrInet (toEnum . fromIntegral $ port) iNADDR_ANY)
+    listen sock 10
+    return sock
+
+respLoop :: Socket -> IORef [Interface] -> IO ()
+respLoop sock ref = do
+    conn <- accept sock
+    ifaces <- readIORef ref
+    send (fst conn) (display ifaces)
+    sClose (fst conn)
+    respLoop sock ref
+
+trackInterfaces :: IORef [Interface] -> IO ()
+trackInterfaces ref = do
+    devs <- getDirectoryContents "/sys/class/net" >>= filterM (return . relevant) >>= filterM isUp
+    prev <- readIORef ref
+    new  <- readProc devs
+    writeIORef ref (rates prev new)
+    threadDelay 1000000
+    trackInterfaces ref
+
+rates :: [Interface] -> [(String, Int, Int)] -> [Interface]
+rates prev devs = (flip map) devs $ \(d, t, r) ->
+    case find (\i -> name i == d) prev of
+        Nothing -> Interface d t 0          r 0
+        Just i  -> Interface d t (t - tx i) r (r - rx i)
+
+isUp :: String -> IO Bool
+isUp d = do
+    operstate <- readFile $ "/sys/class/net/" ++ d ++ "/operstate"
+    return $ "up" == (head . lines) operstate
+
+relevant :: String -> Bool
+relevant d = all id (map (not . (`isPrefixOf` d)) [".", "lo", "docker"])
+
+readProc :: [String] -> IO [(String, Int, Int)]
+readProc ds = do
+    procLines <- fmap (map (wordsBy (`elem` " :")) . lines) . readFile $ "/proc/net/dev"
+    return [(l !! 0, read (l !! 9), read (l !! 1)) | l <- procLines, head l `elem` ds]
+
+display :: [Interface] -> String
+display ifaces = intercalate "    " (map displayIface ifaces)
+    where
+        displayIface i = intercalate " " [bytesToStr (rxDelta i) "↓", name i, bytesToStr (txDelta i) "↑"]
+        bytesToStr i arr
+            | i > m     = green (show (i `div` m) ++ "MiB") ++ arr
+            | i > k     = green (show (i `div` k) ++ "KiB") ++ arr
+            | otherwise = green (show  i                  ) ++ arr
+          where k = 1024
+                m = 1024 * k
+                green x = "<fc=#00FF00>" ++ x ++ "</fc>"

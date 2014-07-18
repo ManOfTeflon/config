@@ -1,0 +1,12 @@
+#!/bin/bash
+
+test () {
+    echo "$@"
+    shift
+    echo "$@"
+}
+
+echo "$@"
+shift
+echo "$@"
+test a s d f

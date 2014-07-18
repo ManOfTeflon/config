@@ -1,0 +1,429 @@
+#!/bin/bash
+
+usage_message='run is a bash script which manages the lifetimes of various screen sessions and processes.
+
+Example usage:
+
+Start memsql single box
+run start memsqld
+
+The same thing with gdb attached
+run -g start memsqld
+run gets a little confused by the aliases, so I have sql/mysqld symlinked to ~/bin/memsqld. I am working on a fix.
+
+Start a cluster with three aggregators and five leaves with the python shell and each MemSQL instance running in a detached screen session.
+run start cluster 3 5
+
+The same thing but with a gdb to manage each instance
+run start cluster 3 5 True
+
+Go to the python shell managing distributed.py
+run watch cluster
+
+Watch the output for various instances
+run watch master
+run watch agg1
+run watch leaf4
+
+Attach a gdb to an existing instance
+run attach master
+
+Watch gdb output
+run debug master
+
+Send SIGTRAP to pause execution (Only do if gdb is attached!!)
+run trap master
+
+Perf top for an instance
+run perf master
+
+Stop any instance
+run stop leaf2
+Currently, run stop cluster will be caught by ipython and not actually stop the cluster. To cleanly shut a cluster down, I do run watch cluster then C-D.'
+
+basedir=$HOME/.run
+screen_prefix=run
+pattern=`echo "$basedir/.run." | sed -r 's/[]\/()$*.^|[]/\\\\&/g'`
+mkdir -p $basedir
+
+sleepinterval=0.25
+
+# Argument defaults
+gdb=
+port=
+noreap=
+name=
+cmd=
+args=
+file=
+existing=
+out=
+
+filename () {
+    echo "$basedir/.run.$1"
+}
+
+getname () {
+    echo "$1" | sed -r "s/$pattern//g"
+}
+
+gdbname () {
+    echo "$basedir/.gdb.$1"
+}
+
+ptsname () {
+    echo "$basedir/.pts.$1"
+}
+
+debugname () {
+    echo "gdb.$1"
+}
+
+getpid () {
+    cat $(filename $1) 2>/dev/null
+}
+
+running () {
+    pid=$(getpid $1)
+    if [ -z "$pid" ]; then
+        return 1
+    fi
+    a=$(ps --no-headers p $pid)
+    if [ -n "$a" ]; then
+        return 0
+    fi
+    return 1
+}
+
+usage () {
+    echo "$usage_message"
+    exit 1
+}
+
+reap () {
+    for file in $basedir/.run.*; do
+        zombie=$(getname $file)
+        pid=$(getpid $zombie)
+        if [ -z $pid ]; then continue; fi
+        if (! running $zombie); then
+            echo "Reaping dead process $zombie with pid $pid"
+            cleanup $zombie
+        fi
+    done
+}
+
+waitforport () {
+    echo "Waiting for port $1""..."
+    until nc -vz localhost $1; do sleep $sleepinterval; done &>/dev/null
+}
+
+cleanup () {
+    rm $(gdbname $1) 2>/dev/null 1>/dev/null
+    rm $(filename $1) 2>/dev/null 1>/dev/null
+}
+
+parse () {
+    if [ -z "$noreap" ]; then
+        reap
+    fi
+
+    cmd=$1
+    shift
+
+    # Escape the rest of the arguments
+    args=
+    for arg in "$@"; do
+        args="$args '$arg'"
+    done
+
+    if [[ -z "$name" ]]; then
+        name=$cmd
+    fi
+
+    file=$(filename $name)
+}
+
+assertnoargs () {
+    if [[ -n "$@" ]]; then
+        usage
+    fi
+}
+
+screen_pid () {
+    ps -p $(getpid $1) -o ppid= 2>/dev/null
+}
+
+existing_screen () {
+    echo $(screen_pid $1).$screen_prefix.$1
+}
+
+name_screen () {
+    echo "$screen_prefix.$1"
+}
+
+cmd () {
+    # echo "$@"
+    eval "$@"
+}
+
+start_screen () {
+    screen_command='echo $$ > '"$2; exec $(echo $3 | sed "s/'/'\"'\"'/g")"
+    screen_args="-t '$1'"
+    if [ -z "$existing" ]; then
+        screen_args="-Adm $screen_args"
+        screen_session=$(name_screen $1)
+    else
+        screen_args="-X screen $screen_args"
+        screen_session=$(existing_screen $existing)
+    fi
+    export IGNOREEOF=1 
+    screen="screen -S '$screen_session' $screen_args sh -c '$screen_command'"
+    r=1
+    attempts=0
+    while [ "$r" -ne 0 ]; do
+        cmd "$screen"
+        r=$?
+        let attempts=attempts+1
+        if [ -z "$existing" -o "$attempts" -ge 100 ] && [ "$r" -ne 0 ]; then echo $r; exit $r; fi
+    done
+    sync
+    while [ ! -s $2 ]; do sleep $sleepinterval; done
+}
+
+if (( ! "$#" )); then
+    usage
+fi
+
+arg=$1
+shift
+middle=
+while (( "$#" )); do
+    case $arg in
+        -g*|--gdb=*)
+            gdb=`echo $arg | sed -r 's/(-g|--gdb=)//'`
+            gdb=true
+            ;;
+
+        -P*|--port=*)
+            port=`echo $arg | sed -r 's/(-P|--port=)//'`
+            ;;
+
+        -o*|--outfile=*)
+            out=`echo $arg | sed -r 's/(-o|--outfile=)//'`
+            ;;
+
+        -n*|--name=*)
+            name=`echo $arg | sed -r 's/(-n|--name=)//'`
+            ;;
+
+        -c|--no-reap)
+            noreap=true
+            ;;
+
+        -e*|--existing*)
+            existing=`echo $arg | sed -r 's/(-e|--existing=)//'`
+            ;;
+        *)
+            break ;;
+    esac
+    arg=$1
+    shift
+done
+
+case $arg in
+        restart)
+            parse "$@"
+            run stop $name
+            ;&
+
+        start)
+            parse "$@"
+
+            if [ -f "$file" ]; then
+                pid=$(getpid $name)
+                echo "Server '$name' is already running with PID " $pid 1>&2
+                exit 1
+            fi
+
+            if [[ -n "$gdb" ]]; then
+                gdbfile=$(gdbname $name)
+                gdbname=$(debugname $name)
+                ptsfile=$(ptsname $name)
+
+                start_screen $name $file "$basedir/pty $ptsfile $gdbname"
+                if [ -z "$existing" ]; then existing=$name; fi
+                start_screen $gdbname $(filename gdb.$name) "gdb -ex 'r $args 1>$ptsfile 2>$ptsfile <$ptsfile' $cmd"
+            else
+                start_screen $name $file "$cmd $args"
+            fi
+            if [ -n "$port" ]; then
+                waitforport "$port"
+            fi
+            ;;
+
+        watch)
+            parse "$@"
+            assertnoargs
+            if [ -z "$(getpid $name)" ]; then exit 0; fi
+
+            if [ -z "$existing" ]; then existing=$name; fi
+            screen -A -d -RR "$(existing_screen $existing)" -p $name
+            ;;
+
+        show)
+            if [ -z "$noreap" ]; then
+                reap
+            fi
+            assertnoargs
+
+            if [ -z "$(find $basedir -name '.run.*')" ]; then exit 0; fi
+            prefix=$basedir/.run.
+            for zombie in $prefix*; do
+                echo $zombie | cut -c `echo "$prefix" | wc -c`-
+            done
+            ;;
+
+        killall)
+            if [ -z "$noreap" ]; then
+                reap
+            fi
+            assertnoargs
+
+            for file in $basedir/.run.*; do
+                zombie=$(getname $file)
+                pid=$(getpid $zombie)
+                if [ -z $pid ]; then continue; fi
+                echo "Killing server $zombie with pid $pid"
+                kill $pid 2>/dev/null
+            done
+
+            reap
+            if [ -z "$(find $basedir -name '.run.*')" ]; then exit 0; fi
+            sleep 1
+
+            reap
+            for file in $basedir/.run.*; do
+                zombie=$(getname $file)
+                pid=$(getpid $zombie)
+                if [ -z $pid ]; then continue; fi
+                echo "Killing uncooperative server $zombie with pid $pid until it's dead"
+                while (running $zombie); do
+                    kill -9 $pid 2>/dev/null
+                done
+            done
+
+            reap
+            ;;
+
+        debug)
+            parse "$@"
+            assertnoargs
+
+            gdbname=$(debugname $name)
+
+            run -e$existing watch $gdbname
+            ;;
+
+        attach)
+            parse "$@"
+            assertnoargs
+            gdbfile=/tmp/attach
+            pid=$(getpid $name)
+
+            sudo gdbserver :20000 --attach $pid &
+            echo "target remote :20000" > $gdbfile
+            gdb -x $gdbfile $cmd
+            rm $gdbfile
+            ;;
+
+        trap)
+            parse "$@"
+            assertnoargs
+            pid=$(getpid $name)
+
+            kill -5 $pid
+            ;;
+
+        int)
+            parse "$@"
+            assertnoargs
+            pid=$(getpid $name)
+
+            kill -2 $pid
+            ;;
+
+        kill)
+            parse "$@"
+            flags="${@:2}"
+            pid=$(getpid $name)
+
+            if [ -n "$pid" ]; then kill $flags $pid; fi
+            ;;
+
+        pipe)
+            parse "$@"
+            assertnoargs
+            pid=$(getpid $name)
+
+            if [ -z $existing ]; then
+                existing=$name
+            fi
+            screen -S "run.$existing" -p "$name" -X stuff "$2
+"
+            ;;
+
+        perf)
+            parse "$@"
+            assertnoargs
+            pid=$(getpid $name)
+
+            sudo perf top -p $pid
+            ;;
+
+        pid)
+            parse "$@"
+            assertnoargs
+            pid=$(getpid $name)
+
+            echo $pid
+            ;;
+
+        forget)
+            parse "$@"
+            assertnoargs
+
+            cleanup $name
+            ;;
+
+        stop)
+            parse "$@"
+            assertnoargs
+            gdbname=$(debugname $name)
+
+            if [ ! -f "$file" ]; then
+                echo "$name is not running!"
+                exit 1
+            fi
+            pid=$(getpid $name)
+
+            echo "Sending SIGQUIT..."
+            kill -SIGQUIT $pid 2>/dev/null
+
+            if running $name; then
+                sleep 1
+                echo "Sending SIGTERM..."
+                kill -SIGTERM $pid 2>/dev/null
+            fi
+
+            if running $name; then
+                sleep 1
+                echo "Senging SIGKILL..."
+                while (running $name); do kill -SIGKILL $pid 2>/dev/null; sleep $sleepinterval; done
+            fi
+            run -c stop $gdbname >/dev/null
+            cleanup $name
+            ;;
+
+        *)
+            usage ;;
+    esac

@@ -1,0 +1,5 @@
+#!/bin/bash
+
+dir=$HOME/.repro
+
+vim $dir/$1.sql

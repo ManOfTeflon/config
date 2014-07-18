@@ -1,0 +1,35 @@
+#!/bin/bash
+
+cd $PATH_TO_MEMSQL
+if [ -z $1 ]; then
+    if [ -h data ]; then
+        rm data
+        mv data.bak data
+    fi
+    if [ -h tracelogs ]; then
+        rm tracelogs
+        mv tracelogs.bak tracelogs
+    fi
+    if [ -h plancache ]; then
+        rm plancache
+        mv plancache.bak plancache
+    fi
+else
+    if [ -d data -a ! -h data ]; then
+        mv data data.bak
+    fi
+    if [ -d tracelogs -a ! -h tracelogs ]; then
+        mv tracelogs tracelogs.bak
+    fi
+    if [ -d plancache -a ! -h plancache ]; then
+        mv plancache plancache.bak
+    fi
+    rm data tracelogs plancache 2>/dev/null
+    node=$1
+    if [ ! -d bincache/$node ]; then
+        node=$((10000 + $1))/memsqlbin
+    fi
+    ln -s bincache/$node/data .
+    ln -s bincache/$node/tracelogs .
+    ln -s bincache/$node/plancache .
+fi
