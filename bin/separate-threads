@@ -15,12 +15,12 @@ if __name__ == '__main__':
     parser.add_argument("-t", dest='threads', nargs='+', type=int, default=None)
     options = parser.parse_args()
     for line in open(options.file, 'r'):
-        m = re.search('\d+ \d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d (\s*\w+): t(\d+) c([-\d]+) (.*)', line)
+        m = re.search('\d+ \d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d (\s*\w+): p\d+ t(\d+)( c(\d+))? (.*)', line)
         if m:
             stream = m.group(1)
             thread_id = int(m.group(2))
-            conn_id = int(m.group(3)) if m.group(3) != '-' else None
-            body = m.group(4)
+            conn_id = int(m.group(4)) if m.group(4) is not None else None
+            body = m.group(5)
 
             if options.threads is not None and thread_id not in options.threads:
                 continue

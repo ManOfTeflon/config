@@ -1,7 +1,0 @@
-#!/bin/bash
-
-node=$1
-if [ -z "$node" ]; then node=memsql; fi
-
-build && echo "hotswap:$node>" | replay
-exit $?

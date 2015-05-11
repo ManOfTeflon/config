@@ -2,3 +2,4 @@
 
 export PYTHONPATH=$PATH_TO_MEMSQL/py:$PYTHONPATH
 exec $@
+

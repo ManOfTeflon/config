@@ -8,6 +8,7 @@ Config {
         Run StdinReader,
         Run Com "network-traffic" [ ] "" 10,
         Run Com "volume" [ ] "" 5,
+        Run Com "build-summary" [ ] "" 5,
         Run Cpu [
             "-H", "50",
             "-h", "red",
@@ -55,5 +56,5 @@ Config {
     ],
     sepChar = "%",
     alignSep = "}{",
-    template = "%StdinReader% }{ %network-traffic% | %volume% | %cpu% | %memory% * %swap% | %battery%     <fc=#ee9a00>%date%</fc> | %EGPF%"
+    template = "%StdinReader% } %build-summary% { %network-traffic% | %volume% | %cpu% | %memory% * %swap% | %battery%     <fc=#ee9a00>%date%</fc> | %EGPF%"
 }

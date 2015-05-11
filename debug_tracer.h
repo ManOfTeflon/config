@@ -1,5 +1,6 @@
 #pragma once
 #include <sstream>
+#include <string>
 #include <typeinfo>
 #include <execinfo.h>
 #include <cxxabi.h>
@@ -68,8 +69,12 @@ template <>
 inline debug_buffer::debug_buffer(uint8_t* const& data) :
     data(data), len(trunc_len()), trunc(true) { }
 
-inline std::string debug_hex(const debug_buffer& buf, bool convert = true)
+inline std::string __debug_hex(const debug_buffer& buf, bool convert = true)
 {
+    if (!buf.data)
+    {
+        return std::string("(nullptr)");
+    }
     std::stringstream ss;
     for (size_t i = 0; i < buf.len; ++i)
     {
@@ -109,7 +114,7 @@ struct debug_contents__ : public debug_contents__<void>
         std::string type(func_stripped, strlen(func_stripped) - 1);
         char buf[20];
         snprintf(buf, sizeof(buf), "%p", &t);
-        ss << type << " @ " << buf << "(" << debug_hex(debug_buffer(t)) << ")";
+        ss << type << " @ " << buf << "(" << __debug_hex(debug_buffer(t)) << ")";
         assign(ss.str());
     }
 };
@@ -119,7 +124,7 @@ struct debug_contents__<debug_buffer> : public debug_contents__<void>
 {
     debug_contents__(const debug_buffer& t)
     {
-        assign("'" + debug_hex(t, false) + "'");
+        assign("'" + __debug_hex(t, false) + "'");
     }
 };
 
@@ -157,32 +162,50 @@ struct debug_contents__<bool> : public debug_contents__<void>
     }
 };
 
+template <>
+struct debug_contents__<void*> : public debug_contents__<void>
+{
+    debug_contents__(void* t)
+    {
+        char buf[20];
+        snprintf(buf, sizeof(buf), "&%p", t);
+        assign(buf);
+    }
+};
+
 template <typename T>
 struct debug_contents__<T*> : public debug_contents__<T>
 {
-    debug_contents__(T* t) : debug_contents__<T>(*t)
+    debug_contents__(T* t) : debug_contents__<typename std::remove_cv<T>::type>(*t)
     {
         assign("&" + *this);
     }
 };
 
-template <>
-struct debug_contents__<const char*> : public debug_contents__<void>
+template <typename T>
+struct debug_contents__<const T*> : public debug_contents__<T*>
 {
-    debug_contents__(const char* t)
+    debug_contents__(const T* t) : debug_contents__<typename std::remove_cv<T>::type*>(const_cast<typename std::remove_cv<T>::type*>(t)) { }
+};
+
+template <>
+struct debug_contents__<char*> : public debug_contents__<void>
+{
+    debug_contents__(char* t)
     {
-        assign("'" + std::string(t) + "'");
+        if (t)
+        {
+            assign("'" + std::string(t) + "'");
+        }
+        else
+        {
+            assign("nullptr");
+        }
     }
 };
 
-template <>
-struct debug_contents__<char*> : public debug_contents__<const char*>
-{
-    debug_contents__(char* t) : debug_contents__<const char*>(t) { }
-};
-
 #define debug_contents_t(T, t) \
-    debug_contents__<T>(t).c_str()
+    debug_contents__<typename std::remove_cv<T>::type>(t).c_str()
 
 #define debug_contents(t) \
     debug_contents_t(typename std::remove_reference<decltype(t)>::type, t)
@@ -195,7 +218,7 @@ struct debug_contentss__;
 template <typename Arg0, typename ... Args>
 struct debug_contentss__<Arg0, Args...> : public debug_contentss__<Args...> {
     debug_contentss__(Arg0&& arg0, Args&& ... args) : debug_contentss__<Args...>(std::forward<Args>(args)...) {
-        assign(debug_contents__<typename std::remove_reference<Arg0>::type>(std::forward<Arg0>(arg0)) + ", " + *this);
+        assign(debug_contents__<typename std::remove_cv<typename std::remove_reference<Arg0>::type>::type>(std::forward<Arg0>(arg0)) + ", " + *this);
     }
 };
 
@@ -208,7 +231,7 @@ struct debug_contentss__<> : public std::string {
 template <typename Arg>
 struct debug_contentss__<Arg> : public debug_contentss__<> {
     debug_contentss__(Arg&& arg) : debug_contentss__<>() {
-        assign(debug_contents__<typename std::remove_reference<Arg>::type>(std::forward<Arg>(arg)));
+        assign(debug_contents__<typename std::remove_cv<typename std::remove_reference<Arg>::type>::type>(std::forward<Arg>(arg)));
     }
 };
 
@@ -298,11 +321,11 @@ inline void trace_stack__(const char* id) {
 	    if (status == 0) {
 		funcname = ret;
 		trace_print("%s:  %s : %s+%s", id,
-			symbollist[i], funcname, begin_offset);
+			debug_basename(symbollist[i]), funcname, begin_offset);
 	    }
 	    else {
 		trace_print("%s:  %s : %s()+%s", id,
-			symbollist[i], begin_name, begin_offset);
+			debug_basename(symbollist[i]), begin_name, begin_offset);
 	    }
 	}
 	else
@@ -419,6 +442,20 @@ struct BackgroundThread {
 };
 #define AutoBackgroundThread() AutoVar(BackgroundThread, );
 #define AutoBackgroundThreadTracer(tid) AutoVar(BackgroundThreadTracer, (tid));
+
+#define trace_refs \
+    void AddRef(Ref DEBUG_ONLY(ref)) \
+    { \
+        trace_stack(ref); \
+        RefCounted::AddRef(DEBUG_ONLY(ref)); \
+    } \
+    \
+    uint32_t RemoveRef(Ref DEBUG_ONLY(ref)) \
+    { \
+        trace_stack(ref); \
+        return RefCounted::RemoveRef(DEBUG_ONLY(ref)); \
+    }
+
 #endif
 
 #define trace_scope \

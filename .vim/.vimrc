@@ -56,9 +56,16 @@ Bundle 'SkidanovAlex/CtrlK'
 Bundle 'airblade/vim-rooter'
 
 Bundle 'bling/vim-airline'
+Bundle 'vim-scripts/Align'
+Bundle 'vim-scripts/SQLUtilities'
+Bundle 'Valloric/YouCompleteMe'
+
+let g:ycm_confirm_extra_conf=0
+let g:ycm_show_diagnostics_ui=0
+let g:ycm_autoclose_preview_window_after_completion=1
 
 set laststatus=2
-let g:airline_symbols = {}
+let g:airline_symbols = { 'space': ' ' }
 let g:airline_theme='kolor'
 let g:airline_detect_whitespace=0
 let g:airline_powerline_fonts=1
@@ -74,23 +81,22 @@ Bundle 'kevinw/pyflakes-vim'
 
 Bundle 'terryma/vim-multiple-cursors'
 
-Bundle 'vim-scripts/ProportionalResize'
+" Bundle 'vim-scripts/ProportionalResize'
 
 Bundle 'ManOfTeflon/exterminator'
 Bundle 'ManOfTeflon/nerdtree-json'
 Bundle 'ManOfTeflon/vim-make'
-
-Bundle 'Shougo/vimproc.vim'
-Bundle 'Shougo/vimshell.vim'
 
 Bundle 'wincent/Command-T'
 let g:CommandTMaxHeight = 10
 let g:CommandTMaxFiles = 500000
 
 let g:NERDTreeWinSize = 70
+let g:NERDTreeMapJumpNextSibling = "L"
+let g:NERDTreeMapJumpPrevSibling = "H"
 
 nnoremap <silent> <leader>n :NERDTree<cr>
-nnoremap <silent> <leader>N :exec 'e ' . getcwd()<cr>
+nnoremap <silent> <leader>N :NERDTreeFind<cr>
 
 nnoremap <silent> <leader><leader>n :0wincmd w<cr>
 
@@ -105,8 +111,7 @@ nnoremap \ ;
 let g:ctrlk_clang_library_path="/usr/lib/llvm-3.3/lib"
 nnoremap <silent> <F3> :call GetCtrlKState()<CR>
 nnoremap <silent> <F2> :call CtrlKNavigateSymbols()<CR>
-nnoremap <silent> <leader>e :call CtrlKNavigateSymbols()<CR>
-au BufRead,BufNewFile *.{cpp,cc,c,h,hpp} nnoremap <buffer> ` :call CtrlKGoToDefinition()<CR>
+au BufRead,BufNewFile *.{cpp,cc,c,h,hpp,hxx} nnoremap <buffer> ` :call CtrlKGoToDefinition()<CR>
 nnoremap ~ :call CtrlKGetReferences() \| Lopen<CR>
 
 nnoremap <space> @q
@@ -211,7 +216,7 @@ nnoremap k gk
 vnoremap j gj
 vnoremap k gk
 vnoremap r "_dP
-set clipboard+=unnamed
+set clipboard=unnamedplus
 
 " fix regex so it's like perl/python
 " nnoremap / /\v
@@ -253,7 +258,7 @@ nnoremap <silent> <C-j> :call WindowMotion('j')<cr>
 nnoremap <silent> <C-k> :call WindowMotion('k')<cr>
 nnoremap <silent> <C-l> :call WindowMotion('l')<cr>
  
-function WindowMotion(dir) "{{{
+function! WindowMotion(dir) "{{{
     let dir = a:dir
  
     let old_winnr = winnr()
@@ -287,6 +292,8 @@ highlight CursorWord guibg=NONE ctermbg=None guifg=#005f87 ctermfg=24
 highlight SpellBad guibg=Green ctermbg=Green guifg=White ctermfg=White
 highlight clear VertSplit
 highlight VertSplit guifg=#5f00d7 ctermfg=56
+highlight TrailingWhitespace ctermbg=Magenta
+au Syntax * syn match TrailingWhitespace /\s\+$/
 set fillchars+=vert:\│
 
 function! HighlightCursor()
@@ -392,7 +399,7 @@ nnoremap <silent> <c-p>h :call HPasteWindow('left')<cr>
 nnoremap <silent> <c-p>l :call HPasteWindow('right')<cr>
 nnoremap <silent> <c-p>p :call HPasteWindow('here')<cr>
 
-let g:extension_cycle = ['.c', '.cc', '.cpp', '.h', '.hpp', '.ipp']
+let g:extension_cycle = ['.c', '.cc', '.cpp', '.h', '.hpp', '.hxx', '.ipp']
 function! CycleExtension()
     let filename = expand('%:p')
     let i=0
@@ -422,7 +429,28 @@ endfunction
 
 nnoremap <silent> <tab> :call CycleExtension()<cr>
 
-nnoremap <silent> <leader>b :VimShellExecute build<CR>
+function! TMuxExecute(cmd, log, clear)
+    if a:clear != 0
+        call TMuxExecute("clear", a:log, 0)
+    endif
+    call system("tmux_run_pane.sh '" . a:log . "' " . a:cmd)
+endfunction
+
+function! s:Test(cmd)
+    call TMuxExecute("mempy python memsqltest/t.py " . a:cmd . ' ' . g:TEST_ARGS, 'test', 1)
+endfunction
+
+command! -nargs=1 -complete=shellcmd TMuxExecute call s:TMuxExecute(<q-args>, 'misc')
+command! -nargs=+ -complete=file Test call s:Test(<q-args>)
+
+nnoremap <silent> <leader>T :Test %<CR>
+
+nnoremap <silent> <leader>a :call TMuxExecute('build ' . g:BUILD_TARGETS, 'build', 0)<CR>
+nnoremap <silent> <leader>c :call TMuxExecute('c', 'build', 0)<CR>
+nnoremap <silent> <leader>S :call TMuxExecute('bash', 'interactive', 0)<CR>
+nnoremap <silent> <leader>r :call TMuxExecute('$PATH_TO_MEMSQL/memsqld ' . g:MEMSQL_ARGS, 'server', 1)<CR>
+
+nnoremap <silent> <leader>e :checktime<cr>
 
 " These say shift, but they are actually ctrl
 set <S-Up>=[A
@@ -440,14 +468,12 @@ function! s:get_range()
   return join(lines, "\n")
 endfunction
 
-nnoremap <silent> & :exec 'VimGrep ' . expand('<cword>')<cr>
-vnoremap <silent> & :exec 'VimGrep ' . s:get_range()
+nnoremap <silent> & :exec 'VimGrep \b' . expand('<cword>') . '\b'<cr>
+vnoremap <silent> & :exec 'VimGrep \b' . s:get_range() . '\b'<cr>
 comm! -nargs=0 -range GdbVEval exec 'GdbEval ' . s:get_range()
 
 nnoremap <silent> <F6>  :exec "GdbEval " . expand("<cword>")<CR>
 vnoremap <silent> <F6>  :GdbVEval<cr>
-nnoremap <silent> <F5>  :GdbLocals<CR>
-nnoremap <silent> <F4>  :GdbNoTrack<CR>
 
 nnoremap <silent> <Insert> :GdbContinue<cr>
 nnoremap <silent> <End> :GdbBacktrace<cr>
@@ -459,13 +485,18 @@ nnoremap <silent> <S-Left> :GdbToggle<cr>
 noremap <silent> <PageUp> :GdbExec up<cr>
 noremap <silent> <PageDown> :GdbExec down<cr>
 
-function! s:start_debugging(cmd)
+function! s:start_debugging(dbg_args, cmd)
     cd $PATH_TO_MEMSQL
-    exec 'Dbg ' . a:cmd
+    call TMuxExecute('', 'exit', 0)
+    exec 'GdbStartDebugger --lock=build.lock ' . a:dbg_args . ' -args ' . a:cmd . ' ' . g:MEMSQL_ARGS
+    wincmd =
 endfunction
-command! -nargs=1 DbgWrapper    call s:start_debugging(<f-args>)
+command! -nargs=1 DbgRun    call s:start_debugging('-ex r', <f-args>)
+command! -nargs=1 DbgWait   call s:start_debugging('', <f-args>)
 
-nnoremap <silent> <leader>B :DbgWrapper ./memsqld<cr>
+nnoremap <silent> <leader>b :DbgWait ./memsqld<cr>
+nnoremap <silent> <leader>B :DbgRun  ./memsqld<cr>
+nnoremap <silent> <leader>C :FindCores<cr>
 
 function! BranchEdit(branch, file)
     enew
@@ -500,3 +531,62 @@ nnoremap <silent> <leader>g :GitShow<space>
 nnoremap <silent> <leader>G :OriginalFile<cr>
 
 nnoremap <silent> <leader>m :RemoteMake<cr>
+
+command! -nargs=1 Curl read!curl -s <q-args>
+
+function! s:mrp(arg)
+    if a:arg
+        exec 'edit ' . system("mrp -r'" . getcwd() . "' -n " . a:arg)
+    else
+        let queries_raw = system("vim_mrp.py -r'" . getcwd() . "'")
+        let queries_list = split(queries_raw, '\n')
+
+        let llist = []
+        for query in queries_list
+            let item = {}
+            let i = match(query, "\t")
+            let item['filename'] = strpart(query, 0, i)
+            let item['text'] = strpart(query, i)
+            let llist += [ item ]
+        endfor
+        call setqflist(llist)
+        copen
+        wincmd J
+    end
+endfunction
+
+command! -nargs=? Mrp call s:mrp(<q-args>)
+nnoremap <silent> <leader>M :Mrp<cr>
+
+function! s:GetSettings(settings)
+    let buf = ''
+    for setting in a:settings
+        if !exists('g:' . setting)
+            let g:{setting}=''
+        endif
+        let name = "g:" . setting
+        let buf = buf . 'let ' . name . "='" . eval(name) . "'\n"
+    endfor
+    return buf
+endfunction
+
+function! s:SetSettings()
+    norm ggyG
+    @"
+endfunction
+
+function! s:EditSettings(settings)
+    tabnew
+    setlocal buftype=nofile bufhidden=wipe
+    let old_o = @o
+    let @o = s:GetSettings(a:settings)
+    silent put o
+    let @o = old_o
+    au BufLeave <buffer> call s:SetSettings()
+endfunction
+
+command! -nargs=0 Settings call s:EditSettings(['BUILD_TARGETS', 'MEMSQL_ARGS', 'TEST_ARGS'])
+nnoremap <silent> <leader>s :Settings<CR>
+
+highlight SignColumn guibg=Black guifg=White ctermbg=None ctermfg=White
+

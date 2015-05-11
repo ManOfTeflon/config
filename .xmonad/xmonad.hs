@@ -89,9 +89,6 @@ main = do
         ((0, 0x1008ff13), spawn "amixer set Master 5+"),
         ((0, 0x1008ff12), spawn "amixer set Master toggle; amixer sset Headphone unmute; amixer sset Speaker unmute"),
 
-        -- Watch cluster
-        ((mod1Mask .|. shiftMask, xK_space), spawn "urxvt -e run watch head"),
-
         ((mod1Mask .|. shiftMask, xK_f), withFocused $ io . modifyIORef toggleFadeSet . toggleFadeOut)
     ] ++ [((m .|. mod1Mask, k), windows (f i))
             | (i, k) <- zip (map show [1..10]) ([xK_1..xK_9] ++ [xK_0])

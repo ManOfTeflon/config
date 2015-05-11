@@ -18,7 +18,7 @@ passthrough=$1
  
 log $(tmux display -p "#W")
 
-if [ "vim" == $(tmux display -p "#W") ]; then
+if (pstree $(tmux display -p "#{pane_pid}") | grep "vim" -q); then
     log 'Current app is `vim`'
  
     # pass any key through to vim

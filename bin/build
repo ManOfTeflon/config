@@ -3,7 +3,7 @@
 cd $PATH_TO_MEMSQL
 
 try () {
-    $@
+    /usr/bin/time -f"'%C' took %e seconds" $@
     e=$?
     if (( e != 0 )); then
         echo "Command '$@' failed!"
@@ -11,6 +11,27 @@ try () {
     fi
 }
 
-try choose_node
-try make -j 9
-try ./binplace -sn
+if [ "$#" == "0" ]; then
+    targets=( ${BUILD_TARGETS:-all} )
+else
+    targets=( "$@" )
+fi
+
+server_hash="$(git rev-parse HEAD)"
+[ "$(git diff --name-only 2> /dev/null | tail -n1)" != "" ] && server_hash="*$server_hash"
+
+echo "Building ${targets[@]}"
+(
+    echo "Waiting for build lock"
+    try flock 200
+
+    echo "Waiting for build server"
+    try wait_for_server
+
+    try c
+    try make -j 9 "${targets[@]}"
+    try ./binplace -sn
+    echo "Successfully built: $server_hash"
+
+) 200>build.lock
+

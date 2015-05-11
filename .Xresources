@@ -40,7 +40,7 @@ Xcursor.size: 16
 #define S_green         #859900
 
 *background:            black
-*foreground:            S_base00
+*foreground:            S_base0
 ! *fading:                40
 ! *fadeColor:             S_base03
 *cursorColor:           S_base1
@@ -96,8 +96,8 @@ URxvt.iso14755:             false
 URxvt*perl-ext-common:      default,url-select,clipboard,matcher,keyboard-select
 
 URxvt.matcher.button:       1
-URxvt.url-launcher:         /usr/bin/chromium-browser
-URxvt.url-select.launcher:  /usr/bin/chromium-browser
+URxvt.url-launcher:         /usr/bin/chromium-browser --disable-gpu
+URxvt.url-select.launcher:  /usr/bin/chromium-browser --disable-gpu
 URxvt.url-select.underline: true
 
 URxvt.keysym.C-i:       perl:url-select:select_next
@@ -111,3 +111,8 @@ URxvt.colorIT:          #87af5f
 URxvt.colorBD:          #d7d7d7
 URxvt.colorUL:          #87afd7
 *.font:             xft:Inconsolata\ For\ Powerline:size=10
+
+! :Bind C-0, C-+ and C-= to activate small, medium, and big font size resp.     
+URxvt.keysym.C-0: command:\033]50;xft:Inconsolata For Powerline:size=10\007
+URxvt.keysym.C-minus: command:\033]50;xft:Inconsolata For Powerline:size=12\007
+URxvt.keysym.C-equal: command:\033]50;xft:Inconsolata For Powerline:size=14\007
