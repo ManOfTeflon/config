@@ -5,18 +5,21 @@
 # It allows one to use a single set of keybinds to navigate between
 # vim windows and tmux panes.  This makes it feel like vim has a
 # terminal emulator built in.
- 
-[ -z $1 ] && exit
- 
+
 log(){
     # echo $@
     # echo $@ >> ~/tmp/log
     return
 }
- 
+
+log ""
+log "Start: $@"
+
+[ -z $1 ] && exit
+
 passthrough=$1
- 
-log $(tmux display -p "#W")
+
+log $(tmux display -p "#S #I:#P #{pane_pid}")
 
 if (pstree $(tmux display -p "#{pane_pid}") | grep "vim" -q); then
     log 'Current app is `vim`'
