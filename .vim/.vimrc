@@ -42,6 +42,8 @@ call vundle#rc()
 
 Bundle 'gmarik/vundle'
 
+Bundle 'mtth/scratch.vim'
+
 Bundle 'tpope/vim-fugitive'
 Bundle 'justinmk/vim-syntax-extra'
 
@@ -88,8 +90,10 @@ Bundle 'ManOfTeflon/nerdtree-json'
 Bundle 'ManOfTeflon/vim-make'
 
 Bundle 'wincent/Command-T'
+nnoremap <F3> :CommandT<CR>
 let g:CommandTMaxHeight = 10
 let g:CommandTMaxFiles = 500000
+let g:CommandTFileScanner = 'watchman'
 
 let g:NERDTreeWinSize = 70
 let g:NERDTreeMapJumpNextSibling = "L"
@@ -101,6 +105,11 @@ nnoremap <silent> <leader>N :NERDTreeFind<cr>
 nnoremap <silent> <leader><leader>n :0wincmd w<cr>
 
 au BufRead,BufNewFile *.yxx set ft=yacc
+au BufRead,BufNewFile *.ops set ft=cpp
+au BufRead,BufNewFile *.types set ft=cpp
+au BufRead,BufNewFile *.methods set ft=cpp
+au BufRead,BufNewFile *.members set ft=cpp
+au BufRead,BufNewFile *.sql.py.expected set ft=sql
 
 nnoremap L <C-i>
 nnoremap H <C-o>
@@ -109,7 +118,7 @@ nnoremap \ ;
 " nnoremap <C-S-o> <C-i>
 
 let g:ctrlk_clang_library_path="/usr/lib/llvm-3.3/lib"
-nnoremap <silent> <F3> :call GetCtrlKState()<CR>
+nnoremap <silent> <F4> :call GetCtrlKState()<CR>
 nnoremap <silent> <F2> :call CtrlKNavigateSymbols()<CR>
 au BufRead,BufNewFile *.{cpp,cc,c,h,hpp,hxx} nnoremap <buffer> ` :call CtrlKGoToDefinition()<CR>
 nnoremap ~ :call CtrlKGetReferences() \| Lopen<CR>
@@ -257,7 +266,16 @@ nnoremap <silent> <C-h> :call WindowMotion('h')<cr>
 nnoremap <silent> <C-j> :call WindowMotion('j')<cr>
 nnoremap <silent> <C-k> :call WindowMotion('k')<cr>
 nnoremap <silent> <C-l> :call WindowMotion('l')<cr>
- 
+
+function! s:Forget()
+    setlocal buftype=nofile
+    setlocal bufhidden=hide
+    setlocal noswapfile
+    exec 'file Scratch' . bufnr('%')
+endfunction
+
+command! -nargs=0 Forget call s:Forget()
+
 function! WindowMotion(dir) "{{{
     let dir = a:dir
  
@@ -399,32 +417,41 @@ nnoremap <silent> <c-p>h :call HPasteWindow('left')<cr>
 nnoremap <silent> <c-p>l :call HPasteWindow('right')<cr>
 nnoremap <silent> <c-p>p :call HPasteWindow('here')<cr>
 
-let g:extension_cycle = ['.c', '.cc', '.cpp', '.h', '.hpp', '.hxx', '.ipp']
+let g:extension_cycles = [ ['.c', '.cc', '.cpp', '.h', '.hpp', '.hxx', '.ipp'], ['.sql', '.sql.py.expected'], ['.mpl', '.mbc'] ]
+
 function! CycleExtension()
     let filename = expand('%:p')
-    let i=0
-    for extension in g:extension_cycle
-        let matches = matchlist(filename, '\(.*\)\' . extension . '$')
-        if !empty(matches)
+    let cycle = []
+    let prefix = ""
+    for extension_cycle in g:extension_cycles
+        let i=0
+        for extension in extension_cycle
+            let matches = matchlist(filename, '\(.*\)\' . extension . '$')
+            if !empty(matches)
+                break
+            endif
+            let i = i + 1
+        endfor
+        if ! empty(matches)
+            let cycle = extension_cycle
+            let prefix = matches[1]
             break
         endif
-        let i = i + 1
     endfor
-    if empty(matches)
-        return
+
+    if ! empty(cycle)
+        let j = i + 1
+        while j != i
+            let j = j % len(cycle)
+            let newfile = prefix . cycle[j]
+            if filereadable(newfile)
+                echo 'found: ' . newfile
+                exec 'edit ' . newfile
+                return
+            endif
+            let j = j + 1
+        endwhile
     endif
-    let prefix = matches[1]
-    let j = i + 1
-    while j != i
-        let j = j % len(g:extension_cycle)
-        let newfile = prefix . g:extension_cycle[j]
-        if filereadable(newfile)
-            echo 'found: ' . newfile
-            exec 'edit ' . newfile
-            return
-        endif
-        let j = j + 1
-    endwhile
 endfunction
 
 nnoremap <silent> <tab> :call CycleExtension()<cr>
@@ -437,13 +464,42 @@ function! TMuxExecute(cmd, log, clear)
 endfunction
 
 function! s:Test(cmd)
-    call TMuxExecute("mempy python memsqltest/t.py " . a:cmd . ' ' . g:TEST_ARGS, 'test', 1)
+    if a:cmd == ""
+        let curfile = expand("%")
+        let curfile_is_test = (curfile =~ "\.sql$" || curfile =~ "\.py$")
+
+        if exists("g:LAST_TEST") && g:LAST_TEST != "" && ! curfile_is_test
+            let cmd = g:LAST_TEST
+        else
+            let cmd = curfile
+        endif
+    else
+        let cmd = a:cmd
+    endif
+
+    let g:LAST_TEST = cmd
+
+    call TMuxExecute("run-test -P3306 --keep-alive " . cmd . ' ' . g:TEST_ARGS, 'test', 0)
+endfunction
+
+let s:TestPlugin = {}
+
+function! s:TestPlugin.Activate(path)
+    call s:Test(a:path.str({'format': 'Edit'}))
+    call nerdtree#closeTreeIfOpen()
+endfunction
+
+function! s:TestTree()
+    call g:NERDTreeCreator.CreatePrimary('memsqltest', s:TestPlugin)
 endfunction
 
 command! -nargs=1 -complete=shellcmd TMuxExecute call s:TMuxExecute(<q-args>, 'misc')
-command! -nargs=+ -complete=file Test call s:Test(<q-args>)
+command! -nargs=* -complete=file Test call s:Test(<q-args>)
+command! -nargs=0 TestTree call s:TestTree()
 
-nnoremap <silent> <leader>T :Test %<CR>
+nnoremap <silent> <leader>t :TestTree<CR>
+nnoremap <silent> <leader>T :Test<CR>
+nnoremap <silent> <c-t> :exec "e " . g:LAST_TEST<CR>
 
 nnoremap <silent> <leader>a :call TMuxExecute('build ' . g:BUILD_TARGETS, 'build', 0)<CR>
 nnoremap <silent> <leader>c :call TMuxExecute('c', 'build', 0)<CR>
@@ -476,7 +532,6 @@ nnoremap <silent> <F6>  :exec "GdbEval " . expand("<cword>")<CR>
 vnoremap <silent> <F6>  :GdbVEval<cr>
 
 nnoremap <silent> <Insert> :GdbContinue<cr>
-nnoremap <silent> <End> :GdbBacktrace<cr>
 nnoremap <silent> <Home> :GdbUntil<cr>
 nnoremap <silent> <S-Up> :GdbExec finish<cr>
 nnoremap <silent> <S-Down> :GdbExec step<cr>
@@ -485,11 +540,25 @@ nnoremap <silent> <S-Left> :GdbToggle<cr>
 noremap <silent> <PageUp> :GdbExec up<cr>
 noremap <silent> <PageDown> :GdbExec down<cr>
 
+function! GdbFrame()
+    if v:count == 0
+        GdbBacktrace
+    else
+        exec "GdbExec frame " . string(v:count)
+    endif
+endfunction
+nnoremap <silent> <End> :<C-U>call GdbFrame()<cr>
+
 function! s:start_debugging(dbg_args, cmd)
-    cd $PATH_TO_MEMSQL
-    call TMuxExecute('', 'exit', 0)
-    exec 'GdbStartDebugger --lock=build.lock ' . a:dbg_args . ' -args ' . a:cmd . ' ' . g:MEMSQL_ARGS
-    wincmd =
+    if GdbIsAttached()
+        GdbExec run
+    else
+        cd $PATH_TO_MEMSQL
+        call TMuxExecute('', 'exit', 0)
+        exec 'GdbStartDebugger --lock=build.lock ' . a:dbg_args . ' -args ' . a:cmd . ' ' . g:MEMSQL_ARGS
+        " call TMuxExecute('', '', 0)
+        wincmd =
+    endif
 endfunction
 command! -nargs=1 DbgRun    call s:start_debugging('-ex r', <f-args>)
 command! -nargs=1 DbgWait   call s:start_debugging('', <f-args>)

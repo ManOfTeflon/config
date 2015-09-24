@@ -30,7 +30,6 @@ echo "Building ${targets[@]}"
 
     try c
     try make -j 9 "${targets[@]}"
-    try ./binplace -sn
     echo "Successfully built: $server_hash"
 
 ) 200>build.lock
