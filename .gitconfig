@@ -19,5 +19,5 @@
     squash = !squash
     chekcout = checkout
 
-[commit]
-	template = /home/mandrews/Projects/memsql/utils/template/commit-template.txt
+# [commit]
+# 	template = /home/mandrews/Projects/memsql/utils/template/commit-template.txt
