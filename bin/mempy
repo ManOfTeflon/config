@@ -1,5 +1,6 @@
 #!/bin/bash
 
 export PYTHONPATH=$PATH_TO_MEMSQL/py:$PYTHONPATH
-exec $@
+"$@"
+exit $?
 

@@ -2,7 +2,7 @@
     email = mandrews@memsql.com
     name = mandrews
 [color]
-	ui = auto
+    ui = auto
 [merge]
     conflictstyle = diff3
     tool          = vimdiff
@@ -10,7 +10,7 @@
     l = log
     t = log --graph --all --full-history --color --pretty=format:"%x1b[33m%h%x09%x1b[34m%>>(20)%an%x20%x20%x20%x20%x1b[0m%s%x20%x1b[35m[%cr]%x1b[32m%d"
     tree = log --graph --all --full-history --color --pretty=format:"%x1b[33m%h%x09%x1b[34m%>>(20)%an%x20%x20%x20%x20%x1b[0m%s%x20%x1b[35m[%cr]%x1b[32m%d"
-    d = diff --color-words='(\\w|\\d)+|[^a-zA-Z0-9 \t]' -b --minimal
+    d = diff --color-words='[^ \t\n(),]+' --word-diff=plain -b --minimal
     g = grep
     b = branch
     c = commit
@@ -18,6 +18,9 @@
     a = add
     squash = !squash
     chekcout = checkout
+    cp = cherry-pick
 
 [commit]
-	template = /home/mandrews/Projects/memsql/utils/template/commit-template.txt
+    template = /home/mandrews/Projects/memsql/utils/template/commit-template.txt
+[url "git@github.com:"]
+    insteadOf = https://github.com/

@@ -188,7 +188,7 @@ function ssh_with_config() {
 
 # some more ls aliases
 function ls() {
-    /usr/bin/env ls -lAh --color --group-directories-first $@
+    /usr/bin/env ls -lASh --color --group-directories-first $@
 # alias ls='ls -lAh --color --group-directories-first '
 }
 

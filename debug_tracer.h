@@ -7,7 +7,7 @@
 #include <assert.h>
 #include "tracing.h"
 
-// #define MEMSQL_SPECIFIC
+#define MEMSQL_SPECIFIC
 
 #ifdef MEMSQL_SPECIFIC
 #include "MemSqlUtil.h"
@@ -115,7 +115,7 @@ struct debug_contents__ : public debug_contents__<void>
         char buf[20];
         snprintf(buf, sizeof(buf), "%p", &t);
         ss << type << " @ " << buf << "(" << __debug_hex(debug_buffer(t)) << ")";
-        assign(ss.str());
+        this->assign(ss.str());
     }
 };
 
@@ -124,7 +124,7 @@ struct debug_contents__<debug_buffer> : public debug_contents__<void>
 {
     debug_contents__(const debug_buffer& t)
     {
-        assign("'" + __debug_hex(t, false) + "'");
+        this->assign("'" + __debug_hex(t, false) + "'");
     }
 };
 
@@ -136,7 +136,7 @@ struct debug_contents__<T> : public debug_contents__<void> \
     { \
         char buf[1024]; \
         snprintf(buf, sizeof(buf), "0x%lx=%" #f #f, (size_t)t, t); \
-        assign(buf); \
+        this->assign(buf); \
     } \
 };
 INTEGRAL_TRACER(char, c)
@@ -158,7 +158,7 @@ struct debug_contents__<bool> : public debug_contents__<void>
 {
     debug_contents__(bool t)
     {
-        assign(t ? "true" : "false");
+        this->assign(t ? "true" : "false");
     }
 };
 
@@ -169,7 +169,7 @@ struct debug_contents__<void*> : public debug_contents__<void>
     {
         char buf[20];
         snprintf(buf, sizeof(buf), "&%p", t);
-        assign(buf);
+        this->assign(buf);
     }
 };
 
@@ -178,7 +178,7 @@ struct debug_contents__<T*> : public debug_contents__<T>
 {
     debug_contents__(T* t) : debug_contents__<typename std::remove_cv<T>::type>(*t)
     {
-        assign("&" + *this);
+        this->assign("&" + *this);
     }
 };
 
@@ -195,13 +195,20 @@ struct debug_contents__<char*> : public debug_contents__<void>
     {
         if (t)
         {
-            assign("'" + std::string(t) + "'");
+            this->assign("\"" + std::string(t) + "\"");
         }
         else
         {
-            assign("nullptr");
+            this->assign("nullptr");
         }
     }
+};
+
+template <size_t N>
+struct debug_contents__<char[N]> : public debug_contents__<char*>
+{
+    debug_contents__(const char* t)
+        : debug_contents__<char*>(const_cast<char*>(t)) { }
 };
 
 #define debug_contents_t(T, t) \
@@ -218,7 +225,7 @@ struct debug_contentss__;
 template <typename Arg0, typename ... Args>
 struct debug_contentss__<Arg0, Args...> : public debug_contentss__<Args...> {
     debug_contentss__(Arg0&& arg0, Args&& ... args) : debug_contentss__<Args...>(std::forward<Args>(args)...) {
-        assign(debug_contents__<typename std::remove_cv<typename std::remove_reference<Arg0>::type>::type>(std::forward<Arg0>(arg0)) + ", " + *this);
+        this->assign(debug_contents__<typename std::remove_cv<typename std::remove_reference<Arg0>::type>::type>(std::forward<Arg0>(arg0)) + ", " + *this);
     }
 };
 
@@ -231,7 +238,7 @@ struct debug_contentss__<> : public std::string {
 template <typename Arg>
 struct debug_contentss__<Arg> : public debug_contentss__<> {
     debug_contentss__(Arg&& arg) : debug_contentss__<>() {
-        assign(debug_contents__<typename std::remove_cv<typename std::remove_reference<Arg>::type>::type>(std::forward<Arg>(arg)));
+        this->assign(debug_contents__<typename std::remove_cv<typename std::remove_reference<Arg>::type>::type>(std::forward<Arg>(arg)));
     }
 };
 
@@ -480,7 +487,7 @@ struct BackgroundThread {
 
 #define trace_vars(...)     trace_context("(" #__VA_ARGS__  ")=(%s)", debug_contentss(__VA_ARGS__).c_str())
 
-#define trace_pause()       raise(SIGINT)
+#define trace_pause()       raise(SIGTSTP)
 
 // #define return              trace_return_lite
 // #define goto                trace_goto

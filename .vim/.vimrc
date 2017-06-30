@@ -26,9 +26,9 @@ filetype off
 " directory
 set directory=/home/mandrews/.vim
 
-" set relativenumber
 set undodir=/home/mandrews/.vim
 set undofile
+set autoread
 
 let loaded_matchparen = 1
 
@@ -51,16 +51,16 @@ Bundle 'xolox/vim-misc'
 
 Bundle 'xolox/vim-session'
 
-Bundle 'L9'
-Bundle 'FuzzyFinder'
-Bundle 'SkidanovAlex/CtrlK'
-
 Bundle 'airblade/vim-rooter'
+
+Bundle 'AndrewRadev/linediff.vim'
+Bundle 'vim-scripts/AnsiEsc.vim'
 
 Bundle 'bling/vim-airline'
 Bundle 'vim-scripts/Align'
 Bundle 'vim-scripts/SQLUtilities'
 Bundle 'Valloric/YouCompleteMe'
+Bundle 'vim-utils/vim-man'
 
 let g:ycm_confirm_extra_conf=0
 let g:ycm_show_diagnostics_ui=0
@@ -83,14 +83,18 @@ Bundle 'kevinw/pyflakes-vim'
 
 Bundle 'terryma/vim-multiple-cursors'
 
-" Bundle 'vim-scripts/ProportionalResize'
-
 Bundle 'ManOfTeflon/exterminator'
 Bundle 'ManOfTeflon/nerdtree-json'
 Bundle 'ManOfTeflon/vim-make'
+Bundle 'ManOfTeflon/tpane'
+
+" Bundle 'ManOfTeflon/python.vim'
+" call python#rc()
+
+" Bundle 'ManOfTeflon/live.vim'
+" PythonPlugin 'live.vim'
 
 Bundle 'wincent/Command-T'
-nnoremap <F3> :CommandT<CR>
 let g:CommandTMaxHeight = 10
 let g:CommandTMaxFiles = 500000
 let g:CommandTFileScanner = 'watchman'
@@ -99,8 +103,10 @@ let g:NERDTreeWinSize = 70
 let g:NERDTreeMapJumpNextSibling = "L"
 let g:NERDTreeMapJumpPrevSibling = "H"
 
-nnoremap <silent> <leader>n :NERDTree<cr>
-nnoremap <silent> <leader>N :NERDTreeFind<cr>
+Bundle 'lyuts/vim-rtags'
+
+nnoremap <silent> <leader>n :NERDTreeFind<cr>
+nnoremap <silent> <leader>N :NERDTree<cr>
 
 nnoremap <silent> <leader><leader>n :0wincmd w<cr>
 
@@ -109,19 +115,23 @@ au BufRead,BufNewFile *.ops set ft=cpp
 au BufRead,BufNewFile *.types set ft=cpp
 au BufRead,BufNewFile *.methods set ft=cpp
 au BufRead,BufNewFile *.members set ft=cpp
+au BufRead,BufNewFile *.mbc set ft=cpp
+au BufRead,BufNewFile *.mpl set ft=maple
 au BufRead,BufNewFile *.sql.py.expected set ft=sql
 
 nnoremap L <C-i>
 nnoremap H <C-o>
 nnoremap _ H
 nnoremap \ ;
-" nnoremap <C-S-o> <C-i>
 
-let g:ctrlk_clang_library_path="/usr/lib/llvm-3.3/lib"
-nnoremap <silent> <F4> :call GetCtrlKState()<CR>
-nnoremap <silent> <F2> :call CtrlKNavigateSymbols()<CR>
-au BufRead,BufNewFile *.{cpp,cc,c,h,hpp,hxx} nnoremap <buffer> ` :call CtrlKGoToDefinition()<CR>
-nnoremap ~ :call CtrlKGetReferences() \| Lopen<CR>
+nnoremap <silent> <F2> :CommandTRTags<CR>
+nnoremap <F3> :CommandT<CR>
+
+nmap <silent> <C-]> <F2>
+au BufRead,BufNewFile *.{cpp,cc,c,h,hpp,hxx} nnoremap <buffer> <silent> ` :call rtags#JumpTo(g:SAME_WINDOW)<CR>
+au BufRead,BufNewFile *.{cpp,cc,c,h,hpp,hxx} nnoremap <buffer> <silent> ~ :call rtags#FindRefs()<CR>
+command! -nargs=0 Rename call rtags#RenameSymbolUnderCursor()
+command! -nargs=1 -complete=customlist,rtags#CompleteSymbols RGrep call rtags#FindRefsByName(<f-args>)
 
 nnoremap <space> @q
 
@@ -178,8 +188,6 @@ set showcmd
 set ruler
 
 " status bar
-" set statusline=\ \%f%m%r%h%w\ ::\ %y\ [%{&ff}]\%=\ [%p%%:\ %l/%L:%c]\
-" set laststatus=2
 set cmdheight=1
 
 " formatting options
@@ -209,7 +217,6 @@ filetype plugin indent on
 
 " maintain more context around cursor
 set scrolloff=100
-" au BufWinEnter * norm M
 
 " Quickly edit/reload the vimrc file
 nnoremap <silent> <leader>ev :e $MYVIMRC<CR>
@@ -227,10 +234,6 @@ vnoremap k gk
 vnoremap r "_dP
 set clipboard=unnamedplus
 
-" fix regex so it's like perl/python
-" nnoremap / /\v
-" vnoremap / /\v
-
 " clear highlights with ,<space>
 nnoremap <silent> <leader><space> :noh<cr>
 
@@ -241,10 +244,6 @@ set history=1000   " remember more commands and search history
 set undolevels=1000 " use many levels of undo
 set wildignore=*.swp,*.bak,*.pyc,*.class,*.o,bincache/**,objdir/**
 set title "terminal title
-
-" Shows spaces as you're writing
-" set list
-" set listchars=tab:>.trail:.,extends:#,nbsp:.
 
 " reselect things just pasted
 nnoremap <leader>v V`]
@@ -262,11 +261,6 @@ nmap <C-w>j <C-j>
 nmap <C-w>k <C-k>
 nmap <C-w>l <C-l>
 
-nnoremap <silent> <C-h> :call WindowMotion('h')<cr>
-nnoremap <silent> <C-j> :call WindowMotion('j')<cr>
-nnoremap <silent> <C-k> :call WindowMotion('k')<cr>
-nnoremap <silent> <C-l> :call WindowMotion('l')<cr>
-
 function! s:Forget()
     setlocal buftype=nofile
     setlocal bufhidden=hide
@@ -274,28 +268,31 @@ function! s:Forget()
     exec 'file Scratch' . bufnr('%')
 endfunction
 
-command! -nargs=0 Forget call s:Forget()
-
-function! WindowMotion(dir) "{{{
-    let dir = a:dir
- 
-    let old_winnr = winnr()
-    execute "wincmd " . dir
-    if old_winnr != winnr()
-        return
-    endif
- 
-    if dir == 'h'
-        let dir = '-L'
-    elseif dir == 'j'
-        let dir = '-D'
-    elseif dir == 'k'
-        let dir = '-U'
-    elseif dir == 'l'
-        let dir = '-R'
-    endif
-    call system('tmux select-pane ' . dir)
+function! s:Less(filename)
+    exec 'edit ' . a:filename
+    setlocal buftype=nowrite
+    setlocal bufhidden=delete
+    setlocal nomodifiable
+    setlocal readonly
+    setlocal noswapfile
+    AnsiEsc
 endfunction
+
+function! s:Bash(command)
+    enew
+    exec '%!' . a:command
+    setlocal buftype=nofile
+    setlocal bufhidden=delete
+    setlocal nomodifiable
+    setlocal readonly
+    setlocal noswapfile
+    exec 'file output:\ ' . substitute(a:command, ' ', '\\ ', 'g')
+    AnsiEsc
+endfunction
+
+command! -nargs=0 Forget call s:Forget()
+command! -nargs=1 -complete=file Less call s:Less(<q-args>)
+command! -nargs=1 -complete=shellcmd Bash call s:Bash(<q-args>)
 
 " Creating and moving between tabs
 nnoremap <silent> <leader>` :tabe<cr>
@@ -342,12 +339,6 @@ au BufRead *
       \ exec "set path^=".tempPath |
       \ exec "set path^=".default_path
 
-"folding settings
-" set foldmethod=syntax   "fold based on indent
-" set foldnestmax=10      "deepest fold is 10 levels
-" set nofoldenable        "dont fold by default
-" set foldlevel=1         "this is just what i use
-" set foldcolumn=0
 hi Folded guibg=#5fffff ctermbg=87 guifg=Red ctermfg=Red
 hi FoldColumn guibg=Black ctermbg=Black guifg=White ctermfg=White
 hi Search guibg=Magenta ctermbg=Magenta guifg=White ctermfg=White
@@ -357,12 +348,9 @@ hi DiffDelete gui=bold cterm=bold guifg=#ff0000 ctermfg=196
 hi DiffChange guifg=#d7ff00 ctermfg=190 guibg=#444444 ctermbg=238
 hi link DiffText String
 
-" Tex-Live grep fix
-" set grepprg=grep\ -nH\ $*
-
 "LaTeX
 "auto recompile upon save
-autocmd BufWritePost *.tex !pdflatex <afile>
+autocmd BufWritePost *.tex silent call system('pdflatex ' . expand("<afile>"))
 
 "Fun functions for playing with splits
 function! HOpen(dir,what_to_open)
@@ -386,14 +374,23 @@ function! HOpen(dir,what_to_open)
   end
 endfunction
 
-function! HYankWindow()
+function! HYankWindow(removed)
+  if exists('g:buffer') && g:removed
+    if g:bufhidden == 'wipe'
+        exec 'bwipeout ' . g:buffer
+    elseif g:bufhidden == 'delete'
+        exec 'bdelete ' . g:buffer
+    endif
+  endif
+
+  let g:removed = a:removed
   let g:window = winnr()
   let g:buffer = bufnr('%')
   let g:bufhidden = &bufhidden
 endfunction
 
 function! HDeleteWindow()
-  call HYankWindow()
+  call HYankWindow(1)
   set bufhidden=hide
   quit
 endfunction
@@ -402,11 +399,11 @@ function! HPasteWindow(direction)
   let old_buffer = bufnr('%')
   call HOpen(a:direction,['buffer',g:buffer])
   let g:buffer = old_buffer
-  let &bufhidden = g:bufhidden
+  let &l:bufhidden = g:bufhidden
 endfunction
 
 nnoremap <silent> <c-d> :call HDeleteWindow()<cr>
-nnoremap <silent> <c-y> :call HYankWindow()<cr>
+nnoremap <silent> <c-y> :call HYankWindow(0)<cr>
 nnoremap <silent> <c-p><up> :call HPasteWindow('up')<cr>
 nnoremap <silent> <c-p><down> :call HPasteWindow('down')<cr>
 nnoremap <silent> <c-p><left> :call HPasteWindow('left')<cr>
@@ -456,58 +453,6 @@ endfunction
 
 nnoremap <silent> <tab> :call CycleExtension()<cr>
 
-function! TMuxExecute(cmd, log, clear)
-    if a:clear != 0
-        call TMuxExecute("clear", a:log, 0)
-    endif
-    call system("tmux_run_pane.sh '" . a:log . "' " . a:cmd)
-endfunction
-
-function! s:Test(cmd)
-    if a:cmd == ""
-        let curfile = expand("%")
-        let curfile_is_test = (curfile =~ "\.sql$" || curfile =~ "\.py$")
-
-        if exists("g:LAST_TEST") && g:LAST_TEST != "" && ! curfile_is_test
-            let cmd = g:LAST_TEST
-        else
-            let cmd = curfile
-        endif
-    else
-        let cmd = a:cmd
-    endif
-
-    let g:LAST_TEST = cmd
-
-    call TMuxExecute("run-test -P3306 --keep-alive " . cmd . ' ' . g:TEST_ARGS, 'test', 0)
-endfunction
-
-let s:TestPlugin = {}
-
-function! s:TestPlugin.Activate(path)
-    call s:Test(a:path.str({'format': 'Edit'}))
-    call nerdtree#closeTreeIfOpen()
-endfunction
-
-function! s:TestTree()
-    call g:NERDTreeCreator.CreatePrimary('memsqltest', s:TestPlugin)
-endfunction
-
-command! -nargs=1 -complete=shellcmd TMuxExecute call s:TMuxExecute(<q-args>, 'misc')
-command! -nargs=* -complete=file Test call s:Test(<q-args>)
-command! -nargs=0 TestTree call s:TestTree()
-
-nnoremap <silent> <leader>t :TestTree<CR>
-nnoremap <silent> <leader>T :Test<CR>
-nnoremap <silent> <c-t> :exec "e " . g:LAST_TEST<CR>
-
-nnoremap <silent> <leader>a :call TMuxExecute('build ' . g:BUILD_TARGETS, 'build', 0)<CR>
-nnoremap <silent> <leader>c :call TMuxExecute('c', 'build', 0)<CR>
-nnoremap <silent> <leader>S :call TMuxExecute('bash', 'interactive', 0)<CR>
-nnoremap <silent> <leader>r :call TMuxExecute('$PATH_TO_MEMSQL/memsqld ' . g:MEMSQL_ARGS, 'server', 1)<CR>
-
-nnoremap <silent> <leader>e :checktime<cr>
-
 " These say shift, but they are actually ctrl
 set <S-Up>=[A
 set <S-Down>=[B
@@ -524,12 +469,13 @@ function! s:get_range()
   return join(lines, "\n")
 endfunction
 
+comm! -nargs=1 -range RangeExec exec <q-args> . ' ' . s:get_range()
+
 nnoremap <silent> & :exec 'VimGrep \b' . expand('<cword>') . '\b'<cr>
-vnoremap <silent> & :exec 'VimGrep \b' . s:get_range() . '\b'<cr>
-comm! -nargs=0 -range GdbVEval exec 'GdbEval ' . s:get_range()
+vnoremap <silent> & :RangeExec VimGrep<cr>
 
 nnoremap <silent> <F6>  :exec "GdbEval " . expand("<cword>")<CR>
-vnoremap <silent> <F6>  :GdbVEval<cr>
+vnoremap <silent> <F6>  :RangeExec GdbEval<cr>
 
 nnoremap <silent> <Insert> :GdbContinue<cr>
 nnoremap <silent> <Home> :GdbUntil<cr>
@@ -540,42 +486,22 @@ nnoremap <silent> <S-Left> :GdbToggle<cr>
 noremap <silent> <PageUp> :GdbExec up<cr>
 noremap <silent> <PageDown> :GdbExec down<cr>
 
-function! GdbFrame()
-    if v:count == 0
-        GdbBacktrace
-    else
-        exec "GdbExec frame " . string(v:count)
-    endif
-endfunction
-nnoremap <silent> <End> :<C-U>call GdbFrame()<cr>
-
-function! s:start_debugging(dbg_args, cmd)
-    if GdbIsAttached()
-        GdbExec run
-    else
-        cd $PATH_TO_MEMSQL
-        call TMuxExecute('', 'exit', 0)
-        exec 'GdbStartDebugger --lock=build.lock ' . a:dbg_args . ' -args ' . a:cmd . ' ' . g:MEMSQL_ARGS
-        " call TMuxExecute('', '', 0)
-        wincmd =
-    endif
-endfunction
-command! -nargs=1 DbgRun    call s:start_debugging('-ex r', <f-args>)
-command! -nargs=1 DbgWait   call s:start_debugging('', <f-args>)
-
-nnoremap <silent> <leader>b :DbgWait ./memsqld<cr>
-nnoremap <silent> <leader>B :DbgRun  ./memsqld<cr>
-nnoremap <silent> <leader>C :FindCores<cr>
+nnoremap <silent> <F5>  :GdbToggleLocals<CR>
+nnoremap <silent> <End> :GdbFrame<cr>
 
 function! BranchEdit(branch, file)
-    enew
     let branch_file = a:branch . ':' . a:file
-    exec "silent %!git show " . branch_file
-    setlocal nomodifiable buftype=nofile bufhidden=wipe
-    exec "file " . branch_file
-    filetype detect
-    au BufReadPre <buffer> setlocal modifiable buftype= bufhidden=hide
-    let b:original_file = a:file
+    if bufnr(branch_file) != -1
+        exec "buffer " . branch_file
+    else
+        enew
+        exec "silent %!git show " . branch_file
+        setlocal nomodifiable buftype=nofile bufhidden=wipe
+        exec "file " . branch_file
+        filetype detect
+        au BufReadPre <buffer> setlocal modifiable buftype= bufhidden=wipe
+        let b:original_file = a:file
+    endif
 endfunction
 
 function! BranchEditComplete(arg, cmd, pos)
@@ -599,15 +525,13 @@ command! -nargs=0 OriginalFile call OriginalFile()
 nnoremap <silent> <leader>g :GitShow<space>
 nnoremap <silent> <leader>G :OriginalFile<cr>
 
-nnoremap <silent> <leader>m :RemoteMake<cr>
-
 command! -nargs=1 Curl read!curl -s <q-args>
 
 function! s:mrp(arg)
     if a:arg
-        exec 'edit ' . system("mrp -r'" . getcwd() . "' -n " . a:arg)
+        exec 'edit ' . system("mrp -r'" . getcwd() . "/debug' -n " . a:arg)
     else
-        let queries_raw = system("vim_mrp.py -r'" . getcwd() . "'")
+        let queries_raw = system("vim_mrp.py -r'" . getcwd() . "/debug'")
         let queries_list = split(queries_raw, '\n')
 
         let llist = []
@@ -627,35 +551,37 @@ endfunction
 command! -nargs=? Mrp call s:mrp(<q-args>)
 nnoremap <silent> <leader>M :Mrp<cr>
 
-function! s:GetSettings(settings)
-    let buf = ''
-    for setting in a:settings
-        if !exists('g:' . setting)
-            let g:{setting}=''
-        endif
-        let name = "g:" . setting
-        let buf = buf . 'let ' . name . "='" . eval(name) . "'\n"
-    endfor
-    return buf
-endfunction
+let g:TPANE_SETTINGS = {
+    \ 'BUILD_COMMAND': 'build memsql-server',
+    \ 'EXECUTABLE': './memsqld',
+    \ 'TEST_DIRECTORY': './memsqltest',
+    \ 'TEST_RUNNER': 'run-test -P3306 --keep-alive ',
+    \ 'WORK_DIRECTORY': '$PATH_TO_MEMSQL',
+    \ 'LAST_TEST': '',
+    \ 'ON_BUILD_SUCCESS': 'LaunchAndTest',
+    \ 'ON_BUILD_FAILURE': 'TPaneExit | RemoteMake',
+ \ }
 
-function! s:SetSettings()
-    norm ggyG
-    @"
-endfunction
-
-function! s:EditSettings(settings)
-    tabnew
-    setlocal buftype=nofile bufhidden=wipe
-    let old_o = @o
-    let @o = s:GetSettings(a:settings)
-    silent put o
-    let @o = old_o
-    au BufLeave <buffer> call s:SetSettings()
-endfunction
-
-command! -nargs=0 Settings call s:EditSettings(['BUILD_TARGETS', 'MEMSQL_ARGS', 'TEST_ARGS'])
 nnoremap <silent> <leader>s :Settings<CR>
+nnoremap <silent> <leader>d :DefaultSettings \| Settings<CR>
+
+command! -nargs=0 ReplaySql !runsql %
+command! -nargs=0 ReplaySqlTmux call TPaneExec("runsql " . expand("%"), 'interactive')
+
+nnoremap <silent> <leader>b :Prepare<cr>
+nnoremap <silent> <leader>B :Launch<cr>
+nnoremap <silent> <leader>C :FindCores<cr>
+
+nnoremap <silent> <leader>T :TestTree<CR>
+nnoremap <silent> <leader>t :Test<CR>
+nnoremap <silent> <c-t> :exec "e " . g:LAST_TEST<CR>
+
+nnoremap <silent> <leader>a :Workflow<CR>
+nnoremap <silent> <leader>S :call TPaneExec('bash', 'interactive')<CR>
+nnoremap <silent> <leader>c :call TPaneExec('c', 'build')<CR>
+nnoremap <silent> <leader>R :ReplaySql<CR>
+nnoremap <silent> <leader>r :ReplaySqlTmux<CR>
+nnoremap <silent> <leader>m :TPaneExit \| RemoteMake<cr>
 
 highlight SignColumn guibg=Black guifg=White ctermbg=None ctermfg=White
 

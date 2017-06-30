@@ -5,6 +5,7 @@ class Argument(object):
         self._modify(name, **kwargs)
 
     def _modify(self, name, **kwargs):
+
         if isinstance(name, str) and 'dest' not in self.kwargs:
             self.kwargs['dest'] = name.replace('-', '_')
         self.kwargs = dict(self.kwargs, **kwargs)
@@ -14,11 +15,13 @@ class Argument(object):
             self.args = [ '--' + name ]
 
             if 'short' in self.kwargs:
+                assert(self.kwargs['short'].isalnum()), "Short arguments must be alphanumeric"
                 self.args += [ '-' + c for c in self.kwargs['short'] ]
 
     def _add(self, parser):
         if 'short' in self.kwargs:
             del self.kwargs['short']
+
         parser.add_argument(*self.args, **self.kwargs)
 
     def __eq__(self, other):
