@@ -37,7 +37,7 @@ let mapleader=","
 
 set sessionoptions=curdir,help,blank,tabpages
 
-set rtp+=~/.vim/bundle/vundle/
+set rtp+=~/.vim/bundle/Vundle.vim/
 call vundle#rc()
 
 Bundle 'gmarik/vundle'
@@ -57,6 +57,7 @@ Bundle 'AndrewRadev/linediff.vim'
 Bundle 'vim-scripts/AnsiEsc.vim'
 
 Bundle 'bling/vim-airline'
+Bundle 'vim-airline/vim-airline-themes'
 Bundle 'vim-scripts/Align'
 Bundle 'vim-scripts/SQLUtilities'
 Bundle 'Valloric/YouCompleteMe'
