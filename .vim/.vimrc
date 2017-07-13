@@ -37,7 +37,7 @@ let mapleader=","
 
 set sessionoptions=curdir,help,blank,tabpages
 
-set rtp+=~/.vim/bundle/Vundle.vim/
+set rtp+=~/.vim/bundle/vundle/
 call vundle#rc()
 
 Bundle 'gmarik/vundle'

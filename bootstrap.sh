@@ -32,5 +32,6 @@ case "${dist}" in
         ;;
 esac
 
+git clone https://github.com/VundleVim/Vundle.vim.git ~/.vim/bundle/vundle
 vim -c BundleInstall
 
