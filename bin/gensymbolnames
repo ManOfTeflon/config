@@ -1,0 +1,10 @@
+#!/bin/bash
+
+(
+    nm $1 | awk '/^[0-9a-f]+ [ABbCDdGgiINpRrSsTtuVvWw]/ { print $3; }' |
+        c++filt -p | grep -v 'lambda.*operator()$' |
+        grep -v '__PRETTY_FUNCTION__$' | cut -d'<' -f1 | uniq
+    (rc -S 'class'; rc -S 'struct') | grep -E '^(class|struct) ' |
+        cut -d' ' -f2-
+) | sort | uniq
+
