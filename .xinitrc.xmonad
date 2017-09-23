@@ -1,4 +1,4 @@
-bash /home/mandrews/.screenlayout/rot.sh
+bash /home/mandrews/.screenlayout/triple.sh
 
 xrdb -merge ~/.Xresources
 

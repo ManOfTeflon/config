@@ -72,10 +72,12 @@ echo "Flavors: ${flavors[@]}"
         try rm -f $flavor
         try ln -f -s $build_dir $flavor
 
-        if [ ! -e "${build_dir}" ]; then
+        if [ ! -e "${build_dir}" ] || [ -z "$(ls -A "${build_dir}")" ]; then
             # if [ -e "${flavor}-master" ]; then
             #     try rsync -rlkpEAth --info=progress2 "${flavor}-master/" $build_dir
             # fi
+            try mkdir -p "${build_dir}"
+            try sudo mount -t tmpfs -o size=3G tmpfs "${build_dir}"
             try memsql-build "${build_args[@]}" cmake $docker_arg --build-dir $build_dir $flavor
         fi
 
@@ -93,7 +95,7 @@ echo "Flavors: ${flavors[@]}"
         try [ "$?" -eq 0 ]
 
         if [ -n "${symbolnames}" ]; then
-            gensymbolnames $build_dir/memsqld >.symbolnames
+            try gensymbolnames $build_dir/memsqld >.symbolnames
         fi
 
         if [ -n "${binplace}" ]; then
@@ -102,7 +104,7 @@ echo "Flavors: ${flavors[@]}"
             try tar cf "../memsqlbin-${flavor}.tar.gz" memsqlbin
             if [ "${flavor}" = "debug" ]; then
                 try rm -f ../memsqlbin.tar.gz
-                try ln "../memsqlbin-${flavor}.tar.gz" ../memsqlbin.tar.gz
+                try ln -s "./memsqlbin-${flavor}.tar.gz" ../memsqlbin.tar.gz
             fi
             try rm -rf ../memsqlbin
             try cp -r memsqlbin ..

@@ -60,7 +60,7 @@ Bundle 'bling/vim-airline'
 Bundle 'vim-airline/vim-airline-themes'
 Bundle 'vim-scripts/Align'
 Bundle 'vim-scripts/SQLUtilities'
-Bundle 'Valloric/YouCompleteMe'
+" Bundle 'Valloric/YouCompleteMe'
 Bundle 'vim-utils/vim-man'
 
 let g:ycm_confirm_extra_conf=0
@@ -71,6 +71,7 @@ set laststatus=2
 let g:airline_symbols = { 'space': ' ' }
 let g:airline_theme='kolor'
 let g:airline_detect_whitespace=0
+let g:airline_section_warning=""
 let g:airline_powerline_fonts=1
 let g:airline_left_sep = ''
 let g:airline_left_alt_sep = ''
@@ -80,7 +81,7 @@ let g:airline_symbols.branch = ''
 let g:airline_symbols.readonly = ''
 let g:airline_symbols.linenr = ''
 
-Bundle 'kevinw/pyflakes-vim'
+" Bundle 'kevinw/pyflakes-vim'
 
 Bundle 'terryma/vim-multiple-cursors'
 
@@ -583,6 +584,8 @@ nnoremap <silent> <leader>c :call TPaneExec('c', 'build')<CR>
 nnoremap <silent> <leader>R :ReplaySql<CR>
 nnoremap <silent> <leader>r :ReplaySqlTmux<CR>
 nnoremap <silent> <leader>m :TPaneExit \| RemoteMake<cr>
+
+nnoremap <silent> <leader>cd :Gcd<cr>
 
 highlight SignColumn guibg=Black guifg=White ctermbg=None ctermfg=White
 

@@ -25,13 +25,35 @@ sudo visudo
 
 case "${dist}" in
     ubuntu)
-        sudo apt-get install vim-nox-py2 tmux ipython gdb
+        sudo apt-get install vim-nox-py2 tmux ipython gdb unclutter compton feh ruby-dev build-essential cmake python-dev python3-dev source-highlight expect xsel
         ;;
     *)
         fatal "Unsupported linux distribution"
         ;;
 esac
 
+mkdir -p "${HOME}/.local"
+cd "${HOME}/.local"
+
+source_highlight_datadir=$(echo n | source-highlight-settings | awk '/the current datadir is:/ { print $5; }')
+git clone https://github.com/jrunning/source-highlight-solarized.git
+cd source-highlight-solarized
+sudo ln -s $(pwd)/esc-solarized.outlang "${source_highlight_datadir}"
+sudo ln -s $(pwd)/esc-solarized.style "${source_highlight_datadir}"
+
+exit 0
+
+git clone https://github.com/powerline/fonts.git
+cd fonts
+./install.sh
+
 git clone https://github.com/VundleVim/Vundle.vim.git ~/.vim/bundle/vundle
 vim -c BundleInstall
+
+cd "${HOME}/.vim/bundle/Command-T/ruby/command-t/ext/command-t"
+ruby extconf.rb
+make
+
+cd "${HOME}/.vim/bundle/YouCompleteMe"
+./install.py --clang-completer
 
