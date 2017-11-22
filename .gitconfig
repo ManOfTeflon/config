@@ -1,5 +1,5 @@
 [user]
-    email = mandrews@memsql.com
+    email = 09mandrews@gmail.com
     name = mandrews
 [color]
     ui = auto
@@ -20,7 +20,3 @@
     chekcout = checkout
     cp = cherry-pick
 
-[commit]
-    template = /home/mandrews/Projects/memsql/utils/template/commit-template.txt
-[url "git@github.com:"]
-    insteadOf = https://github.com/

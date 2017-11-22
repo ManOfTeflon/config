@@ -48,14 +48,23 @@ class Context(object):
         self._actions.append(action)
         setattr(self, action.get_name(), action)
 
-    def execute(self, *args, **kwargs):
+    def parse(self, *args, **kwargs):
         try:
-            options = self._get_parser().parse_args(*args, **kwargs)
+            return self._get_parser().parse_args(*args, **kwargs)
         except SystemExit as e:
             if int(str(e)):
                 raise actions.ParseError()
             else:
-                return
+                return None
+
+    def execute(self, *args, **kwargs):
+        try:
+            options = self.parse(*args, **kwargs)
+        except actions.ParseError:
+            raise SystemExit(1)
+
+        if options is None:
+            return
 
         if not hasattr(options, '__action'):
             setattr(options, '__action', self.get_full_name())

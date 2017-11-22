@@ -211,4 +211,4 @@ source ~/.localrc
 if [ -n `which xrdb` ]; then
     xrdb ~/.Xresources &>/dev/null
 fi
-export LD_LIBRARY_PATH="/usr/lib/llvm-3.3/lib"
+source ~/.bash_profile

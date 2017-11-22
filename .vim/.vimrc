@@ -62,13 +62,15 @@ Bundle 'vim-scripts/Align'
 Bundle 'vim-scripts/SQLUtilities'
 " Bundle 'Valloric/YouCompleteMe'
 Bundle 'vim-utils/vim-man'
+Bundle 'fatih/vim-go'
+Bundle 'leafgarland/typescript-vim'
 
 let g:ycm_confirm_extra_conf=0
 let g:ycm_show_diagnostics_ui=0
 let g:ycm_autoclose_preview_window_after_completion=1
 
 set laststatus=2
-let g:airline_symbols = { 'space': ' ' }
+let g:airline_symbols = { 'space': ' ', 'maxlinenr': '' }
 let g:airline_theme='kolor'
 let g:airline_detect_whitespace=0
 let g:airline_section_warning=""
@@ -109,6 +111,7 @@ Bundle 'lyuts/vim-rtags'
 
 nnoremap <silent> <leader>n :NERDTreeFind<cr>
 nnoremap <silent> <leader>N :NERDTree<cr>
+nnoremap <silent> <leader><C-n> :NERDTreeClose<cr>
 
 nnoremap <silent> <leader><leader>n :0wincmd w<cr>
 
@@ -153,7 +156,14 @@ else
     colorscheme elflord
 endif
 
-let g:session_default_to_last=1
+try
+    if len(argv()) == 0
+        let g:session_default_name = fnamemodify(systemlist("git rev-parse --show-toplevel")[0], ':t')
+    endif
+catch
+endtry
+
+let g:session_default_overwrite = 0
 let g:session_autoload="yes"
 let g:session_autosave_periodic=1
 let g:session_autosave="yes"
@@ -237,7 +247,7 @@ vnoremap r "_dP
 set clipboard=unnamedplus
 
 " clear highlights with ,<space>
-nnoremap <silent> <leader><space> :noh<cr>
+nnoremap <silent> <leader><space> :noh\|redraw!<cr>
 
 " hides buffers instead of closing them
 set hidden
@@ -529,39 +539,8 @@ nnoremap <silent> <leader>G :OriginalFile<cr>
 
 command! -nargs=1 Curl read!curl -s <q-args>
 
-function! s:mrp(arg)
-    if a:arg
-        exec 'edit ' . system("mrp -r'" . getcwd() . "/debug' -n " . a:arg)
-    else
-        let queries_raw = system("vim_mrp.py -r'" . getcwd() . "/debug'")
-        let queries_list = split(queries_raw, '\n')
-
-        let llist = []
-        for query in queries_list
-            let item = {}
-            let i = match(query, "\t")
-            let item['filename'] = strpart(query, 0, i)
-            let item['text'] = strpart(query, i)
-            let llist += [ item ]
-        endfor
-        call setqflist(llist)
-        copen
-        wincmd J
-    end
-endfunction
-
-command! -nargs=? Mrp call s:mrp(<q-args>)
-nnoremap <silent> <leader>M :Mrp<cr>
-
 let g:TPANE_SETTINGS = {
-    \ 'BUILD_COMMAND': 'build memsql-server',
-    \ 'EXECUTABLE': './memsqld',
-    \ 'TEST_DIRECTORY': './memsqltest',
-    \ 'TEST_RUNNER': 'run-test -P3306 --keep-alive ',
-    \ 'WORK_DIRECTORY': '$PATH_TO_MEMSQL',
-    \ 'LAST_TEST': '',
-    \ 'ON_BUILD_SUCCESS': 'LaunchAndTest',
-    \ 'ON_BUILD_FAILURE': 'TPaneExit | RemoteMake',
+    \ 'EXECUTABLE': 'make -j dev-run',
  \ }
 
 nnoremap <silent> <leader>s :Settings<CR>
@@ -588,4 +567,8 @@ nnoremap <silent> <leader>m :TPaneExit \| RemoteMake<cr>
 nnoremap <silent> <leader>cd :Gcd<cr>
 
 highlight SignColumn guibg=Black guifg=White ctermbg=None ctermfg=White
+
+hi TabLineFill ctermfg=Black ctermbg=Black
+hi TabLine ctermfg=White ctermbg=141
+hi TabLineSel ctermfg=LightGray ctermbg=91
 
