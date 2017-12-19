@@ -126,7 +126,8 @@ GIT_PS1_SHOWDIRTYSTATE=true
 GIT_PS1_SHOWSTASHSTATE=true
 
 if [ "$color_prompt" = yes ]; then
-    export PS1='\[\e[0;32m\]\u\[\e[0;36m\]@\[\e[0;38m\]\h\[\e[m\] \[\e[1;34m\]\W\[\e[m\]\[\033[00;34m\]$(__git_ps1 " [%s]" 2>/dev/null)\[\e[1;32m\] \$\[\e[m\] '
+    export PS1='\[\e[38;5;235m\] -- $(date "+%T.%N ($?)")\[\e[m\]\n\[\e[0;32m\]\u\[\e[0;36m\]@\[\e[0;38m\]\h\[\e[m\] \[\e[1;34m\]\W\[\e[m\]\[\033[00;34m\]$(__git_ps1 " [%s]" 2>/dev/null)\[\e[1;32m\] \$\[\e[m\] '
+    export PS0='\[\e[38;5;235m\] -- $(date +%T.%N)\[\e[m\]\n'
 else
     export PS1='\u@\h \W$(__git_ps1 " [%s]" 2>/dev/null) \$ '
 fi

@@ -1,121 +1,14 @@
 #!/bin/bash
 
-set -f -o pipefail
+set -o pipefail
 
-echo cd $PATH_TO_MEMSQL
-cd $PATH_TO_MEMSQL
+tmpfile="$(mktemp)"
 
-try () {
-    /usr/bin/time -f"'%C' took %e seconds" $@
-    e=$?
-    if (( e != 0 )); then
-        echo "Command '$@' failed!"
-        echo $e >&200
-        exit $e
-    fi
-}
+make -j "$@" 2>&1 | tee $tmpfile
+r=$?
 
-if [ "$#" == "0" ]; then
-    args=( ${BUILD_TARGETS:-all} )
-else
-    args=( "$@" )
+if ((r)); then
+    tpane -i build tpane annotate $tmpfile
 fi
 
-binplace=
-symbolnames=
-docker_arg="--use-recent-image"
-flavors=()
-targets=()
-for i in $(seq 1 ${#args[@]}); do
-    if [ "${args[i-1]}" = "memsqlbin" ]; then
-        binplace=yes
-        targets=( "${targets[@]}" memsql-server )
-    elif [ "${args[i-1]}" = "debug" -o "${args[i-1]}" = "release" ]; then
-        flavors=( "${flavors[@]}" "${args[i-1]}" )
-    elif [ "${args[i-1]}" = "symbolnames" ]; then
-        symbolnames=yes
-        targets=( "${targets[@]}" memsqld )
-    elif [ "${args[i-1]}" = "docker" ]; then
-        docker_arg=
-    else
-        targets=( "${targets[@]}" "${args[i-1]}" )
-    fi
-done
-if [ "${#flavors[@]}" -eq 0 ]; then
-    flavors=( debug )
-fi
-
-server_hash="$(git rev-parse HEAD)"
-[ "$(git diff --name-only 2> /dev/null | tail -n1)" != "" ] && server_hash="*$server_hash"
-
-build_args=()
-if [ ! -t 0 ]; then
-    build_args=( "${build_args[@]}" --noninteractive )
-fi
-
-echo "Targets: ${targets[@]}"
-echo "Flavors: ${flavors[@]}"
-(
-    echo "Waiting for build lock"
-    try flock 200
-
-    echo >build.lock
-    echo '' >build.out
-
-    echo "Waiting for build server"
-    try wait_for_server
-
-    for flavor in "${flavors[@]}"; do
-        build_dir="${flavor}-$(git rev-parse --abbrev-ref HEAD)"
-        echo "Directory: ${build_dir}"
-
-        try rm -f $flavor
-        try ln -f -s $build_dir $flavor
-
-        if [ ! -e "${build_dir}" ] || [ -z "$(ls -A "${build_dir}")" ]; then
-            # if [ -e "${flavor}-master" ]; then
-            #     try rsync -rlkpEAth --info=progress2 "${flavor}-master/" $build_dir
-            # fi
-            try mkdir -p "${build_dir}"
-            try sudo mount -t tmpfs -o size=3G tmpfs "${build_dir}"
-            try memsql-build "${build_args[@]}" cmake $docker_arg --build-dir $build_dir $flavor
-        fi
-
-        try [ ! -e $flavor -o -h $flavor ]
-
-        try c $build_dir
-        try mkdir -p $build_dir/data/snapshots/
-        # try ln -f -s memsql_snapshot_0 $build_dir/data/snapshots/db_snapshot_0
-        try touch objdir
-
-        let cores="$(grep -c ^processor /proc/cpuinfo)"
-        let cores=cores+1
-        try memsql-build "${build_args[@]}" make $docker_arg --build-dir $build_dir $flavor --skip-binplace -j$cores "${targets[@]}" 2>&1 | tee build.out
-
-        try [ "$?" -eq 0 ]
-
-        if [ -n "${symbolnames}" ]; then
-            try gensymbolnames $build_dir/memsqld >.symbolnames
-        fi
-
-        if [ -n "${binplace}" ]; then
-            cd $build_dir
-            try ../binplace -sn
-            try tar cf "../memsqlbin-${flavor}.tar.gz" memsqlbin
-            if [ "${flavor}" = "debug" ]; then
-                try rm -f ../memsqlbin.tar.gz
-                try ln -s "./memsqlbin-${flavor}.tar.gz" ../memsqlbin.tar.gz
-            fi
-            try rm -rf ../memsqlbin
-            try cp -r memsqlbin ..
-            cd ..
-        fi
-
-        try ln -f -s $flavor/memsqld .
-    done
-
-    echo "Successfully built: $server_hash"
-    echo 0 >&200
-
-) 200>build.lock
-
+exit $r

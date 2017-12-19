@@ -223,6 +223,24 @@ set ttymouse=xterm2
 
 "allows sudo with :w!!
 cnoremap w!! %!sudo tee > /dev/null %
+" start of line
+:cnoremap <C-A>		<Home>
+" back one character
+:cnoremap <C-B>		<Left>
+" delete character under cursor
+:cnoremap <C-D>		<Del>
+" end of line
+:cnoremap <C-E>		<End>
+" forward one character
+:cnoremap <C-F>		<Right>
+" recall newer command-line
+:cnoremap <C-N>		<Down>
+" recall previous (older) command-line
+:cnoremap <C-P>		<Up>
+" back one word
+:cnoremap <Esc><C-B>	<S-Left>
+" forward one word
+:cnoremap <Esc><C-F>	<S-Right>
 
 " auto indent
 filetype plugin indent on
@@ -540,29 +558,21 @@ nnoremap <silent> <leader>G :OriginalFile<cr>
 command! -nargs=1 Curl read!curl -s <q-args>
 
 let g:TPANE_SETTINGS = {
-    \ 'EXECUTABLE': 'make -j dev-run',
+    \ 'BUILD_COMMAND': 'build impirad',
+    \ 'EXECUTABLE': './impirad',
+    \ 'TEST_RUNNER': 'build run-tests',
  \ }
 
 nnoremap <silent> <leader>s :Settings<CR>
-nnoremap <silent> <leader>d :DefaultSettings \| Settings<CR>
+nnoremap <silent> <leader>d :DefaultSettings\|Settings<CR>
 
-command! -nargs=0 ReplaySql !runsql %
-command! -nargs=0 ReplaySqlTmux call TPaneExec("runsql " . expand("%"), 'interactive')
+nnoremap <silent> <leader>b :Run<cr>
+nnoremap <silent> <leader>B :Run ./impirad-dev<cr>
 
-nnoremap <silent> <leader>b :Prepare<cr>
-nnoremap <silent> <leader>B :Launch<cr>
-nnoremap <silent> <leader>C :FindCores<cr>
-
-nnoremap <silent> <leader>T :TestTree<CR>
+nnoremap <silent> <leader>a :System workflow impirad-dev<CR>
+nnoremap <silent> <leader>A :Build<CR>
+nnoremap <silent> <leader>S :Term bash<CR>
 nnoremap <silent> <leader>t :Test<CR>
-nnoremap <silent> <c-t> :exec "e " . g:LAST_TEST<CR>
-
-nnoremap <silent> <leader>a :Workflow<CR>
-nnoremap <silent> <leader>S :call TPaneExec('bash', 'interactive')<CR>
-nnoremap <silent> <leader>c :call TPaneExec('c', 'build')<CR>
-nnoremap <silent> <leader>R :ReplaySql<CR>
-nnoremap <silent> <leader>r :ReplaySqlTmux<CR>
-nnoremap <silent> <leader>m :TPaneExit \| RemoteMake<cr>
 
 nnoremap <silent> <leader>cd :Gcd<cr>
 

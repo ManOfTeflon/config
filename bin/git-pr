@@ -1,0 +1,55 @@
+#!/usr/bin/env python2
+
+import sys
+import subprocess
+from python.actions import Action, PositionalArgument, execute
+
+def fatal(*args):
+    sys.stderr.write("fatal: " + ' '.join(args))
+    sys.exit(1)
+
+def shell(cmd):
+    try:
+        p = subprocess.Popen(cmd, shell=True, stdout = subprocess.PIPE)
+        r, _ = p.communicate()
+        return r.strip()
+    except subprocess.CalledProcessError as e:
+        fatal(cmd)
+
+def get_branch():
+    name = shell("git rev-parse --symbolic-full-name --abbrev-ref HEAD")
+    return None if name == "HEAD" else name
+
+@Action
+def submit():
+    branch = get_branch()
+
+    if branch is None:
+        fatal("no branch checked out")
+
+    shell("git push -u origin %(branch)s:mandrews/%(branch)s" % locals())
+    print("To continue, visit:\n\n\thttps://github.com/impira/impira/compare/mandrews/%(branch)s?expand=1\n" % locals())
+
+@Action
+def update():
+    branch = get_branch()
+
+    if branch is None:
+        fatal("no branch checked out")
+
+    shell("git push -f origin %(branch)s:mandrews/%(branch)s" % locals())
+
+@Action
+def close(branch=PositionalArgument()):
+    cur = get_branch()
+
+    if cur != 'master':
+        fatal("not on master branch")
+
+    shell("git branch -D %(branch)s" % locals())
+    shell("git branch -D -r origin/mandrews/%(branch)s" % locals())
+    shell("git pull origin master")
+
+if __name__ == '__main__':
+    execute()
+
