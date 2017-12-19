@@ -212,4 +212,3 @@ source ~/.localrc
 if [ -n `which xrdb` ]; then
     xrdb ~/.Xresources &>/dev/null
 fi
-source ~/.bash_profile
