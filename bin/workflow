@@ -1,0 +1,14 @@
+#!/bin/bash
+
+prog="$1"
+args=( "${@:2}" )
+
+tpane build build $prog
+r=$?
+
+if ((!r)); then
+    tpane run "./$prog" "${args[@]}"
+fi
+
+exit $r
+

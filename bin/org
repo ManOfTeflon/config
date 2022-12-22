@@ -1,0 +1,10 @@
+#!/bin/bash
+
+dir="$HOME/Shared/Notes"
+file="$(date +"$dir/%Y_%m_%d.org")"
+
+if [ ! -f "${file}" ]; then
+    cp "$(for file in $dir/*.org; do echo "${file}"; done | sort | tail -n1)" "${file}"
+fi
+
+nvim "${file}"

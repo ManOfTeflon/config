@@ -1,0 +1,12 @@
+#!/bin/bash
+
+project="${1-impira}"
+sessions="$(tmux ls 2>/dev/null)"
+
+if (echo "${sessions}" | grep -q "${project}"); then
+    tmux -2 new-session -t "${project}"
+
+else
+    tmux -2 new-session -s "${project}" -c /home/mandrews/Projects/"${project}" zsh
+fi
+

@@ -1,0 +1,53 @@
+#!/bin/bash
+
+usage () {
+    echo "clip {xget|xset|get|set}" >&2
+    exit 1
+}
+
+if [ $# = "0" ]; then
+    usage
+fi
+
+action="$1"
+shift
+contents=
+
+get_contents () {
+    if [ -z "${contents}" ]; then
+        contents="$(cat /dev/stdin)"
+    fi
+}
+
+for arg in "${@}"; do
+    case "${arg}" in
+        -p)
+            get_contents
+            echo -n "${contents}"
+            ;;
+        *)
+            usage
+            ;;
+    esac
+done
+
+case "${action}" in
+    tset)
+        get_contents
+        tmux set-buffer "${contents}"
+        ;;
+    tget)
+        tmux show-buffer
+        ;;
+    xset)
+        get_contents
+        echo -n "${contents}" | xsel -b -i
+        ;;
+    xget)
+        xsel -o
+        ;;
+    *)
+        usage
+        ;;
+esac
+

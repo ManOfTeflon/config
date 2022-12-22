@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+tmp="$(mktemp /tmp/nos.XXXXXXXX)"
+git grep -n '^=======$' $(git status | awk '/both modified/ { print $3 }') > "${tmp}"
+nodo qfix "${tmp}"

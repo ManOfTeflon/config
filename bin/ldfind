@@ -1,0 +1,15 @@
+#!/bin/bash
+
+lib="$1"
+
+set -euo pipefail
+
+dir=$(mktemp -d)
+trap "{ rm -rf '${dir}'; }" EXIT
+
+echo "int main() { }" > "${dir}/main.c"
+
+gcc -o "${dir}/a.out" "${dir}/main.c" -Wl,--no-as-needed -Wl,--allow-shlib-undefined -l${lib}
+
+ldd "${dir}/a.out" | grep "lib${lib}.so"
+

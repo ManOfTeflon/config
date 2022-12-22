@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -euo pipefail
+
+stack="$1"
+comm="$2"
+
+case "$comm" in
+    logs)
+        heytmux ~/.heytmux/${stack}-${comm}.yaml
+        ;;
+    *)
+        echo "unknown command: $comm" >&2
+        exit 1
+esac

@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -euo pipefail
+
+a=$1
+b=$2
+shift
+shift
+
+diff "$@" <(cat "$a" | jq -S . | sed 's/,$//') <(cat "$b" | jq -S . | sed 's/,$//')
+

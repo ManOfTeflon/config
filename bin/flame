@@ -1,0 +1,8 @@
+#!/bin/bash
+
+perf_file="$1"
+svg_file="${2-/dev/stdout}"
+
+REPO="$HOME/Projects/FlameGraph"
+$REPO/stackcollapse-perf.pl "${perf_file}" | $REPO/flamegraph.pl /dev/stdin > "${svg_file}"
+

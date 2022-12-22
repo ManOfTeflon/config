@@ -1,0 +1,66 @@
+#!/bin/bash
+
+set -euo pipefail
+IFS=$'\n\t'
+
+A="$1"
+shift
+B="$1"
+shift
+
+usage () {
+    echo "git branch-diff <revision> <revision> [-d] [-p pattern]" 1>&2
+    exit 2
+}
+
+diff_only=
+pattern=
+while getopts "dp:" opts; do
+    case "${opts}" in
+        d)
+            diff_only=yes
+            ;;
+        p)
+            pattern="${OPTARG}"
+            ;;
+        *)
+            usage
+            ;;
+    esac
+done
+
+A_commits="$(git log --pretty=format:"%h%x09%>>(24)%an%x20%x20%x20%x20%s" "$B..$A")"
+B_commits="$(git log --pretty=format:"%h%x09%>>(24)%an%x20%x20%x20%x20%s" "$A..$B")"
+
+show () {
+    to_print="$1"
+    to_diff="$2"
+
+    IFS=$'\n'
+    for line in ${to_print}; do
+        if [ -n "${line}" ]; then
+            commit="$(echo "${line}" | awk '{ print $1 }')"
+            prefix="$(echo "${line}" | cut -c-34)"
+            suffix="$(echo "${line}" | cut -c37-)"
+            present="$([ -n "$(echo "${to_diff}" | grep -F "${suffix}")" ] && echo -n yes || echo -n)"
+            if [ -n "${present}" -a -z "${diff_only}" ]; then
+                echo "${prefix}* ${suffix}"
+            elif [ -z "${present}" ]; then
+                echo "${prefix}  ${suffix}"
+            else
+                continue
+            fi
+
+            if [ -n "${pattern}" ]; then
+                git show "${commit}" --stat | grep "${pattern}" || true
+            fi
+        fi
+    done
+}
+
+show "${A_commits}" "${B_commits}"
+
+echo -e "\n====================================\n"
+
+show "${B_commits}" "${A_commits}"
+

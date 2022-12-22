@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+tmp="$(mktemp /tmp/nogrep.XXXXXXXX)"
+git grep -n "$@" > "${tmp}"
+nodo qfix "${tmp}"

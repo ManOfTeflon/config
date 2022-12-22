@@ -1,0 +1,4 @@
+#!/bin/bash
+
+ft="${1-json}"
+nvim -R -c "set ft=${ft}" -

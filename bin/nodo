@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage () {
+    echo "$0 {tabs|exec} ..." >&2
+    exit 1
+}
+
+nvim=
+for tty in $(tmux list-panes -F '#{pane_tty}'); do
+    nvims=( $(ps ht ${tty} -o pid -o comm | awk '/ nvim$/ { print $1 }') )
+    if [ "${#nvims[@]}" -gt 0 ]; then
+        nvim="${nvims[0]}"
+        break
+    fi
+
+    tty=
+done
+
+if [ $(tmux display-message -p '#{window_zoomed_flag}') = "1" ]; then
+    tmux resize-pane -Z
+fi
+
+servername=
+if [ -n "${nvim}" ]; then
+    servername="$(lsof -a -p $nvim -U -F n 2>/dev/null | awk '/^n\/tmp\/nvim/ { print substr($1,2); }')"
+fi
+
+command="$1"
+shift
+
+args=( "$@" )
+
+if [ "$#" = 0 ]; then
+    tmp="$(mktemp)"
+    trap "rm '${tmp}'" EXIT
+
+    cat >"${tmp}"
+    args=( "${tmp}" )
+fi
+
+case "${command}" in
+    edit)
+        localcmd=( -- "${args[@]}" )
+        remotecmd=( --remote "${args[@]}" )
+        ;;
+    tabs)
+        localcmd=( -p -- "${args[@]}" )
+        remotecmd=( -p "${args[@]}" )
+        ;;
+    exec)
+        localcmd=( -c "$*" )
+        remotecmd=( -c "$*" )
+        ;;
+    qfix)
+        localcmd=( -q "${args[@]}" )
+        remotecmd=( -q "${args[@]}" )
+        ;;
+    *)
+        usage
+        ;;
+esac
+
+if [ -n "${servername}" ]; then
+    nvr --servername "${servername}" --nostart "${remotecmd[@]}"
+
+else
+    height="$(tmux display-message -p '#{client_height}')"
+    let height=height-20
+    cmd="nvim ${localcmd[*]@Q}"
+    str="${cmd@Q}"
+    tmux split-window -b -f -v -l "${height}" -c '#{pane_current_path}' "echo ${str}; ${cmd}; bash"
+fi
+
+if [ -n "$tty" ]; then
+    tmux list-panes -F '#{pane_tty} #{pane_id}' | \
+        grep -F "${tty}" | \
+        awk '{ $1=""; print $0; }' | \
+        xargs tmux select-pane -t
+fi

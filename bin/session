@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -euxo pipefail
+
+path="$(realpath "${1%/}")"
+project="$(basename "$1")"
+tmux new-session -d -A -s "${project}" -c "${path}" bash
+tmux attach-session -t "${project}"
+

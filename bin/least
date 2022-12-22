@@ -1,0 +1,4 @@
+#!/bin/bash
+
+clear
+unbuffer "$@" 2>&1 | less +F -R
