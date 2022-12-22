@@ -2940,50 +2940,50 @@ end
 
 
 # ____________________misc____________________
-define hook-stop
-    if (sizeof(void*) == 8)
-        set $64BITS = 1
-    else
-        set $64BITS = 0
-    end
-
-    if ($KDP64BITS != -1)
-        if ($KDP64BITS == 0)
-            set $64BITS = 0
-        else
-            set $64BITS = 1
-        end
-    end
-
-    # Display instructions formats
-    if $ARM == 1
-        if $ARMOPCODES == 1
-            set arm show-opcode-bytes 1
-        end
-    else
-        if $X86FLAVOR == 0
-            set disassembly-flavor intel
-        else
-            set disassembly-flavor att
-        end
-    end
-
-    # this makes 'context' be called at every BP/step
-    if ($SHOW_CONTEXT > 0)
-        context
-    end
-    if ($SHOW_NEST_INSN > 0)
-        set $x = $_nest
-        while ($x > 0)
-            printf "\t"
-            set $x = $x - 1
-        end
-    end
-end
-document hook-stop
-Syntax: hook-stop
-| !!! FOR INTERNAL USE ONLY - DO NOT CALL !!!
-end
+# define hook-stop
+#     if (sizeof(void*) == 8)
+#         set $64BITS = 1
+#     else
+#         set $64BITS = 0
+#     end
+# 
+#     if ($KDP64BITS != -1)
+#         if ($KDP64BITS == 0)
+#             set $64BITS = 0
+#         else
+#             set $64BITS = 1
+#         end
+#     end
+# 
+#     # Display instructions formats
+#     if $ARM == 1
+#         if $ARMOPCODES == 1
+#             set arm show-opcode-bytes 1
+#         end
+#     else
+#         if $X86FLAVOR == 0
+#             set disassembly-flavor intel
+#         else
+#             set disassembly-flavor att
+#         end
+#     end
+# 
+#     # this makes 'context' be called at every BP/step
+#     if ($SHOW_CONTEXT > 0)
+#         context
+#     end
+#     if ($SHOW_NEST_INSN > 0)
+#         set $x = $_nest
+#         while ($x > 0)
+#             printf "\t"
+#             set $x = $x - 1
+#         end
+#     end
+# end
+# document hook-stop
+# Syntax: hook-stop
+# | !!! FOR INTERNAL USE ONLY - DO NOT CALL !!!
+# end
 
 
 # original by Tavis Ormandy (http://my.opera.com/taviso/blog/index.dml/tag/gdb) (great fix!)
@@ -3786,23 +3786,23 @@ define print_now
     printf "%0.6f\n", FastTimestamp::rdtsc() / 1000000.0 / g_lockFreeEngine->timestampCounterTicksPerMicrosec
 end
 
-source /home/mandrews/.gdb.syntax.py
-
-define hook-list
-    python gdb.highlighter.logging_on('cpp')
-end
-
-define hook-frame
-    python gdb.highlighter.logging_on('cpp')
-end
-
-define hook-backtrace
-    python gdb.highlighter.logging_on('cpp')
-end
-
-define hook-disassemble
-    python gdb.highlighter.logging_on('asm')
-end
+# source /home/mandrews/.gdb.syntax.py
+# 
+# define hook-list
+#     python gdb.highlighter.logging_on('cpp')
+# end
+# 
+# define hook-frame
+#     python gdb.highlighter.logging_on('cpp')
+# end
+# 
+# define hook-backtrace
+#     python gdb.highlighter.logging_on('cpp')
+# end
+# 
+# define hook-disassemble
+#     python gdb.highlighter.logging_on('asm')
+# end
 
 define exterminate
     source /home/mandrews/Projects/exterminator/lib/exterminator.py
@@ -3813,9 +3813,15 @@ define wait-or-exit
 end
 
 set print thread-events off
+set print inferior-events off
 set print pretty on
 set pagination off
 
-# @memsql-gdbinit
-add-auto-load-safe-path /home/mandrews/Projects/memsql
+source /home/mandrews/bin/gdb_golang.py
+source /home/mandrews/bin/gdb_nodo.py
 
+add-auto-load-safe-path /home/mandrews/go/src/runtime/runtime-gdb.py
+add-auto-load-safe-path /usr/local/go/src/runtime/runtime-gdb.py
+add-auto-load-safe-path /home/mandrews/Projects/impira/opt/build/.8e9090d1d68f8ebe1f7d37bdfc8b4ab6/src/runtime/runtime-gdb.py
+add-auto-load-safe-path /home/mandrews/Projects/impira/.gdbinit
+add-auto-load-safe-path /home/mandrews/Projects/iql/.gdbinit

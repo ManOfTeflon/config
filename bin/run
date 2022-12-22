@@ -2,7 +2,7 @@
 
 """ Script for managing the lifetimes of servers inside tmux sessions """
 
-from actions import Argument, PositionalArgument, Action, execute, ParseError
+from actions import Argument, PositionalArgument, Action, main, ParseError
 from subprocess import check_output, check_call, Popen, PIPE
 import os
 import psutil
@@ -246,9 +246,6 @@ def reap():
 
 if __name__ == '__main__':
     reap()
-    try:
-        execute()
-    except ParseError:
-        raise SystemExit(1)
+    main()
     reap()
 

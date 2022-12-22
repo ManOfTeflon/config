@@ -8,8 +8,10 @@
     tool          = vimdiff
 [alias]
     l = log
-    t = log --graph --all --full-history --color --pretty=format:"%x1b[33m%h%x09%x1b[34m%>>(20)%an%x20%x20%x20%x20%x1b[0m%s%x20%x1b[35m[%cr]%x1b[32m%d"
-    tree = log --graph --all --full-history --color --pretty=format:"%x1b[33m%h%x09%x1b[34m%>>(20)%an%x20%x20%x20%x20%x1b[0m%s%x20%x1b[35m[%cr]%x1b[32m%d"
+    summary = log --pretty=format:"%h%x09%>>(24)%an%x20%x20%x20%x20%s"
+    w = watch
+    t = watch
+    tree = log --graph --all --full-history --color --pretty=format:"%x1b[33m%h%x09%x1b[34m%>>(24)%an%x20%x20%x20%x20%x1b[0m%s%x20%x1b[35m[%cr]%x1b[32m%d"
     d = diff --color-words='[^ \t\n(),]+' --word-diff=plain -b --minimal
     g = grep
     b = branch
@@ -19,4 +21,11 @@
     squash = !squash
     chekcout = checkout
     cp = cherry-pick
+    file-log = log --reverse -p --pretty=short
+    amend = commit --amend --no-edit
 
+[url "git@github.com:"]
+    insteadOf = https://github.com/
+
+[submodule]
+    recurse = true

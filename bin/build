@@ -1,14 +1,5 @@
 #!/bin/bash
 
-set -o pipefail
+set -euo pipefail
 
-tmpfile="$(mktemp)"
-
-make -j "$@" 2>&1 | tee $tmpfile
-r=$?
-
-if ((r)); then
-    tpane -i build tpane annotate $tmpfile
-fi
-
-exit $r
+tpane try build make -j "$@"

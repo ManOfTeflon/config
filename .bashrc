@@ -1,73 +1,3 @@
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#                                                                                                               ALEX GET THE FUCK OUT OF HERE
-#                                                                                                                      (I trusted you)
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
 # ~/.bashrc: executed by bash(1) for non-login shells.
 # see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
@@ -171,7 +101,7 @@ fi
 bind '"\e[A": history-search-backward' 2>/dev/null
 bind '"\e[B": history-search-forward' 2>/dev/null
 
-export EDITOR=vim
+export EDITOR=nvim
 
 function waitforport () {
     echo "Waiting for port $1""..."
@@ -189,19 +119,17 @@ function ssh_with_config() {
 
 # some more ls aliases
 function ls() {
-    /usr/bin/env ls -lASh --color --group-directories-first $@
-# alias ls='ls -lAh --color --group-directories-first '
+    /usr/bin/env ls -lASh --color --group-directories-first "$@"
 }
 
 alias playground="cat | sed '1i#include <stdio.h>\\n#include <malloc.h>\\n#include <string.h>\\nint main() { ' | sed '$ a printf(\"\n\"); }' | tcc -run -"
-alias please='sudo '
 alias sudo='sudo '
-alias bitch='. bitch '
 alias ns='netstat -lnutp'
 alias ssh='TERM=xterm-256color \ssh '
 alias g='git'
 alias tmux='tmux -2 '
-# alias vim='vim -u /tmp/vim/.vimrc '
+alias vim='nvim '
+alias h='history|grep'
 # if [ ! -d /tmp/vim ]; then
 #     ln -s ~/.vim /tmp/vim
 # fi
@@ -212,3 +140,4 @@ source ~/.localrc
 if [ -n `which xrdb` ]; then
     xrdb ~/.Xresources &>/dev/null
 fi
+. "$HOME/.cargo/env"

@@ -26,7 +26,7 @@ filetype off
 " directory
 set directory=/home/mandrews/.vim
 
-set undodir=/home/mandrews/.vim
+set undodir=/home/mandrews/.vim/undo
 set undofile
 set autoread
 
@@ -51,9 +51,9 @@ Bundle 'xolox/vim-misc'
 
 Bundle 'xolox/vim-session'
 
-Bundle 'airblade/vim-rooter'
+" Bundle 'airblade/vim-rooter'
 
-Bundle 'AndrewRadev/linediff.vim'
+" Bundle 'AndrewRadev/linediff.vim'
 Bundle 'vim-scripts/AnsiEsc.vim'
 
 Bundle 'bling/vim-airline'
@@ -64,6 +64,12 @@ Bundle 'vim-scripts/SQLUtilities'
 Bundle 'vim-utils/vim-man'
 Bundle 'fatih/vim-go'
 Bundle 'leafgarland/typescript-vim'
+
+Bundle 'Shougo/vimproc.vim'
+Bundle 'Quramy/tsuquyomi'
+
+au BufRead,BufNewFile *.{tsx} nnoremap <buffer> <silent> ` :TsuDefinition<CR>
+au BufRead,BufNewFile *.{tsx} nnoremap <buffer> <silent> ~ :TsuReferences<CR>
 
 let g:ycm_confirm_extra_conf=0
 let g:ycm_show_diagnostics_ui=0
@@ -101,17 +107,21 @@ Bundle 'ManOfTeflon/tpane'
 Bundle 'wincent/Command-T'
 let g:CommandTMaxHeight = 10
 let g:CommandTMaxFiles = 500000
-let g:CommandTFileScanner = 'watchman'
+let g:CommandTFileScanner = 'git'
 
 let g:NERDTreeWinSize = 70
 let g:NERDTreeMapJumpNextSibling = "L"
 let g:NERDTreeMapJumpPrevSibling = "H"
 
+
 Bundle 'lyuts/vim-rtags'
+
+Bundle 'chrisbra/NrrwRgn'
 
 nnoremap <silent> <leader>n :NERDTreeFind<cr>
 nnoremap <silent> <leader>N :NERDTree<cr>
 nnoremap <silent> <leader><C-n> :NERDTreeClose<cr>
+nnoremap <leader>e :NERDTreeCurrentFile<cr>
 
 nnoremap <silent> <leader><leader>n :0wincmd w<cr>
 
@@ -123,18 +133,21 @@ au BufRead,BufNewFile *.members set ft=cpp
 au BufRead,BufNewFile *.mbc set ft=cpp
 au BufRead,BufNewFile *.mpl set ft=maple
 au BufRead,BufNewFile *.sql.py.expected set ft=sql
+au BufRead,BufNewFile *.sql.tmpl set ft=sql
+au BufRead,BufNewFile *.tpst set ft=sql
 
 nnoremap L <C-i>
 nnoremap H <C-o>
 nnoremap _ H
 nnoremap \ ;
 
-nnoremap <silent> <F2> :CommandTRTags<CR>
-nnoremap <F3> :CommandT<CR>
+" nnoremap <silent> <F2> :CommandTRTags<CR>
+nnoremap <c-e> :CommandT<CR>
 
 nmap <silent> <C-]> <F2>
 au BufRead,BufNewFile *.{cpp,cc,c,h,hpp,hxx} nnoremap <buffer> <silent> ` :call rtags#JumpTo(g:SAME_WINDOW)<CR>
 au BufRead,BufNewFile *.{cpp,cc,c,h,hpp,hxx} nnoremap <buffer> <silent> ~ :call rtags#FindRefs()<CR>
+au BufRead,BufNewFile *.{go} nnoremap <buffer> <silent> ` :GoDef<CR>
 command! -nargs=0 Rename call rtags#RenameSymbolUnderCursor()
 command! -nargs=1 -complete=customlist,rtags#CompleteSymbols RGrep call rtags#FindRefsByName(<f-args>)
 
@@ -219,7 +232,7 @@ syntax on
 
 " enable mouse
 set mouse=a
-set ttymouse=xterm2
+set ttymouse=sgr
 
 "allows sudo with :w!!
 cnoremap w!! %!sudo tee > /dev/null %
@@ -239,8 +252,10 @@ cnoremap w!! %!sudo tee > /dev/null %
 :cnoremap <C-P>		<Up>
 " back one word
 :cnoremap <Esc><C-B>	<S-Left>
+:cnoremap <A-b>	        <S-Left>
 " forward one word
 :cnoremap <Esc><C-F>	<S-Right>
+:cnoremap <A-f>	        <S-Left>
 
 " auto indent
 filetype plugin indent on
@@ -265,7 +280,8 @@ vnoremap r "_dP
 set clipboard=unnamedplus
 
 " clear highlights with ,<space>
-nnoremap <silent> <leader><space> :noh\|redraw!<cr>
+nnoremap <silent> <leader><space> :noh<cr>
+nnoremap <silent> <leader><c-space> :noh\|redraw!<cr>
 
 " hides buffers instead of closing them
 set hidden
@@ -277,9 +293,6 @@ set title "terminal title
 
 " reselect things just pasted
 nnoremap <leader>v V`]
-
-" quick exit from insert
-inoremap jj <ESC>
 
 " Creating and moving between splits
 nnoremap <leader>h <c-w>v
@@ -341,7 +354,7 @@ highlight TrailingWhitespace ctermbg=Magenta
 au Syntax * syn match TrailingWhitespace /\s\+$/
 set fillchars+=vert:\│
 
-function! HighlightCursor()
+function! s:HighlightCursor()
   let cword=expand("<cword>")
   if cword =~ '\<\*\?\h\w*'
     try
@@ -354,8 +367,8 @@ function! HighlightCursor()
   endif
 endfunction
 
-au CursorMoved * call HighlightCursor()
-au InsertLeave * call HighlightCursor()
+au CursorMoved * call s:HighlightCursor()
+au InsertLeave * call s:HighlightCursor()
 au InsertEnter * match Cursor //
 
 let default_path = escape(&path, '\ ') " store default value of 'path'
@@ -391,6 +404,8 @@ function! HOpen(dir,what_to_open)
     vsplit
   elseif a:dir=='up' || a:dir=='down'
     split
+  elseif a:dir=='tab'
+    tabe
   end
 
   if a:dir=='down' || a:dir=='right'
@@ -432,6 +447,14 @@ function! HPasteWindow(direction)
   let &l:bufhidden = g:bufhidden
 endfunction
 
+function! HMaximize(nonumber)
+    call HYankWindow(0)
+    call HPasteWindow('tab')
+    if a:nonumber
+        set nonumber
+    endif
+endfunction
+
 nnoremap <silent> <c-d> :call HDeleteWindow()<cr>
 nnoremap <silent> <c-y> :call HYankWindow(0)<cr>
 nnoremap <silent> <c-p><up> :call HPasteWindow('up')<cr>
@@ -442,7 +465,10 @@ nnoremap <silent> <c-p>k :call HPasteWindow('up')<cr>
 nnoremap <silent> <c-p>j :call HPasteWindow('down')<cr>
 nnoremap <silent> <c-p>h :call HPasteWindow('left')<cr>
 nnoremap <silent> <c-p>l :call HPasteWindow('right')<cr>
+nnoremap <silent> <c-p>t :call HPasteWindow('tab')<cr>
 nnoremap <silent> <c-p>p :call HPasteWindow('here')<cr>
+nnoremap <silent> <c-w>z :call HMaximize(0)<cr>
+nnoremap <silent> <c-w>Z :call HMaximize(1)<cr>
 
 let g:extension_cycles = [ ['.c', '.cc', '.cpp', '.h', '.hpp', '.hxx', '.ipp'], ['.sql', '.sql.py.expected'], ['.mpl', '.mbc'] ]
 
@@ -503,6 +529,7 @@ comm! -nargs=1 -range RangeExec exec <q-args> . ' ' . s:get_range()
 
 nnoremap <silent> & :exec 'VimGrep \b' . expand('<cword>') . '\b'<cr>
 vnoremap <silent> & :RangeExec VimGrep<cr>
+nnoremap <silent> <c-_> :VimGrep 
 
 nnoremap <silent> <F6>  :exec "GdbEval " . expand("<cword>")<CR>
 vnoremap <silent> <F6>  :RangeExec GdbEval<cr>
@@ -519,7 +546,7 @@ noremap <silent> <PageDown> :GdbExec down<cr>
 nnoremap <silent> <F5>  :GdbToggleLocals<CR>
 nnoremap <silent> <End> :GdbFrame<cr>
 
-function! BranchEdit(branch, file)
+function! s:BranchEdit(branch, file)
     let branch_file = a:branch . ':' . a:file
     if bufnr(branch_file) != -1
         exec "buffer " . branch_file
@@ -534,51 +561,109 @@ function! BranchEdit(branch, file)
     endif
 endfunction
 
-function! BranchEditComplete(arg, cmd, pos)
+function! s:BranchEditComplete(arg, cmd, pos)
     return system("git for-each-ref --format='%(refname:short)' refs/heads/")
 endfunction
 
-function! GitShow(branch)
-    Rooter
-    call BranchEdit(a:branch, expand('%'))
+function! s:GitShow(branch)
+    " Rooter
+    call s:BranchEdit(a:branch, expand('%'))
 endfunction
 
-function! OriginalFile()
+function! s:OriginalFile()
     if exists('b:original_file')
         exec 'e ' . b:original_file
     endif
 endfunction
 
-command! -nargs=1 -complete=custom,BranchEditComplete GitShow call GitShow(<q-args>)
-command! -nargs=0 OriginalFile call OriginalFile()
+command! -nargs=1 -complete=custom,s:BranchEditComplete GitShow call s:GitShow(<q-args>)
+command! -nargs=0 OriginalFile call s:OriginalFile()
 
 nnoremap <silent> <leader>g :GitShow<space>
 nnoremap <silent> <leader>G :OriginalFile<cr>
 
 command! -nargs=1 Curl read!curl -s <q-args>
 
+let g:GO_TEST_PREFIX=fnamemodify($GOPATH . '/src/github.com/impira/impira/', ':p')
+function! s:ResolveGoTestArgs()
+    let l:file = expand('%:p')
+
+    if strpart(l:file, 0, len(g:GO_TEST_PREFIX)) != g:GO_TEST_PREFIX
+        return []
+    else
+        let l:file = strpart(l:file, len(g:GO_TEST_PREFIX))
+    endif
+
+    if l:file !~# '^.*_test\.go$'
+        let l:file = expand('%:h') . '/...'
+    endif
+
+    let l:args = [ l:file ]
+    if expand('<cword>') =~# '^Test[a-zA-Z0-9]\+$'
+        let l:args = l:args + [ '-run', expand('<cword>') ]
+    endif
+
+    return l:args
+endfunction
+
+function! s:TestGo(args)
+    let g:LAST_GO_TEST = a:args
+    exec 'TestArgs ' . join(a:args, ' ')
+endfunction
+command! -nargs=* TestGo call s:TestGo(len(<q-args>) ? [<f-args>] : s:ResolveGoTestArgs())
+
+function! s:TestLastGo()
+    if exists('g:LAST_GO_TEST')
+        call s:TestGo(g:LAST_GO_TEST)
+    endif
+endfunction
+command! -nargs=0 TestLastGo call s:TestLastGo()
+
 let g:TPANE_SETTINGS = {
-    \ 'BUILD_COMMAND': 'build impirad',
-    \ 'EXECUTABLE': './impirad',
-    \ 'TEST_RUNNER': 'build run-tests',
+    \ 'BUILD_COMMAND': 'build backend',
+    \ 'EXECUTABLE': './impirad -f configs/mandrews.yaml',
+    \ 'TEST_RUNNER': 'gotest',
  \ }
 
 nnoremap <silent> <leader>s :Settings<CR>
 nnoremap <silent> <leader>d :DefaultSettings\|Settings<CR>
 
-nnoremap <silent> <leader>b :Run<cr>
-nnoremap <silent> <leader>B :Run ./impirad-dev<cr>
+nnoremap <silent> <leader>b     :Run<CR>
 
-nnoremap <silent> <leader>a :System workflow impirad-dev<CR>
-nnoremap <silent> <leader>A :Build<CR>
+nnoremap <silent> <leader>a     :Build<CR>
+nnoremap <silent> <leader><c-a> :Build build dist/<CR>
+nnoremap <silent> <leader>A     :Build build all<CR>
+
 nnoremap <silent> <leader>S :Term bash<CR>
-nnoremap <silent> <leader>t :Test<CR>
+
+nnoremap <silent> <leader>t     :TestGo /home/mandrews/Projects/impira/go/src/github.com/impira/impira/...<CR>
+nnoremap <silent> <leader>T     :TestGo<CR>
+nnoremap <silent> <leader><c-t> :TestLastGo<CR>
 
 nnoremap <silent> <leader>cd :Gcd<cr>
+
+function! MakePattern(text)
+  let pat = escape(a:text, '\')
+  let pat = substitute(pat, '\_s\+$', '\\s\\*', '')
+  let pat = substitute(pat, '^\_s\+', '\\s\\*', '')
+  let pat = substitute(pat, '\_s\+',  '\\_s\\+', 'g')
+  return '\\V' . escape(pat, '\"')
+endfunction
+vnoremap <silent> / :<C-U>let @/="<C-R>=MakePattern(getline("'<")[getpos("'<")[2]-1:getpos("'>")[2]])<CR>" \| set hls<CR>
 
 highlight SignColumn guibg=Black guifg=White ctermbg=None ctermfg=White
 
 hi TabLineFill ctermfg=Black ctermbg=Black
 hi TabLine ctermfg=White ctermbg=141
 hi TabLineSel ctermfg=LightGray ctermbg=91
+
+" Impira stuff
+
+function! s:ViewSchema()
+    enew
+    %!pg_dump -s -d impira
+    set ft=sql
+    Forget
+endfunction
+comm! -nargs=0 ViewSchema call s:ViewSchema()
 
