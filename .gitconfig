@@ -23,9 +23,15 @@
     cp = cherry-pick
     file-log = log --reverse -p --pretty=short
     amend = commit --amend --no-edit
+    rebase-stack = rebase --fork-point --update-refs
 
 [url "git@github.com:"]
     insteadOf = https://github.com/
 
 [submodule]
     recurse = true
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true

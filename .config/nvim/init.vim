@@ -1,7 +1,4 @@
-let g:python_host_prog = '/home/mandrews/.pyenv/versions/2.7.17/bin/python'
-let g:python3_host_prog = '/home/mandrews/.pyenv/versions/3.6.9/bin/python'
-
-set undodir=/home/mandrews/.cache/nvim/undo/
+set undodir=$HOME/.cache/nvim/undo/
 set undofile
 set autoread
 au FocusGained,CursorHold * :checktime
@@ -101,7 +98,6 @@ Plug 'neoclide/coc.nvim', {'branch': 'release'}
 Plug 'vim-airline/vim-airline'
 Plug 'vim-airline/vim-airline-themes'
 Plug 'christoomey/vim-tmux-navigator'
-Plug 'fatih/vim-go'
 Plug 'HerringtonDarkholme/yats.vim'
 Plug 'maxmellon/vim-jsx-pretty'
 Plug 'scrooloose/nerdtree'
@@ -109,12 +105,11 @@ Plug 'tpope/vim-fugitive'
 Plug 'jceb/vim-orgmode'
 Plug 'google/vim-jsonnet'
 Plug 'AndrewRadev/linediff.vim'
-" Plug 'tpope/vim-dispatch'
 Plug 'airblade/vim-gitgutter'
 Plug 'jackguo380/vim-lsp-cxx-highlight'
 Plug 'tpope/vim-dadbod'
 Plug 'powerman/vim-plugin-AnsiEsc'
-Plug 'ManOfTeflon/exterminator'
+Plug 'kazhala/close-buffers.nvim'
 
 call plug#end()
 
@@ -173,6 +168,8 @@ au FileType typescript call s:SetTabWidth(2, 1)
 au FileType typescript.tsx call s:SetTabWidth(2, 1)
 au FileType javascript call s:SetTabWidth(2, 1)
 au FileType scss call s:SetTabWidth(2, 1)
+au FileType css call s:SetTabWidth(2, 1)
+au FileType cpp call s:SetTabWidth(2, 1)
 
 set expandtab
 set nosmarttab
@@ -233,7 +230,7 @@ nnoremap <s-left> <c-w><
 nnoremap <s-right> <c-w>>
 
 highlight clear VertSplit
-highlight Normal ctermbg=234
+highlight Normal ctermfg=189 ctermbg=234
 highlight CocHighlightText ctermbg=237
 highlight CocInlayHint ctermfg=8
 highlight VertSplit guifg=#5f00d7 ctermfg=56
@@ -269,18 +266,18 @@ highlight DiffDelete gui=bold cterm=bold guifg=#ff0000 ctermfg=196
 highlight DiffChange guifg=#d7ff00 ctermfg=190 guibg=#444444 ctermbg=238
 highlight link DiffText String
 
-nnoremap <silent> <leader>ev :e /home/mandrews/.config/nvim/init.vim<CR>
-nnoremap <silent> <leader>sv :so /home/mandrews/.config/nvim/init.vim<CR>
+nnoremap <silent> <leader>ev :e $HOME/.config/nvim/init.vim<CR>
+nnoremap <silent> <leader>sv :so $HOME/.config/nvim/init.vim<CR>
 
 " Use tab for trigger completion with characters ahead and navigate.
 " Use command ':verbose imap <tab>' to make sure tab is not mapped by other plugin.
 inoremap <silent><expr> <TAB>
       \ pumvisible() ? "\<C-n>" :
-      \ <SID>check_back_space() ? "\<TAB>" :
+      \ S_check_back_space() ? "\<TAB>" :
       \ coc#refresh()
 inoremap <expr><S-TAB> pumvisible() ? "\<C-p>" : "\<C-h>"
 
-function! s:check_back_space() abort
+function! S_check_back_space() abort
   let col = col('.') - 1
   return !col || getline('.')[col - 1]  =~# '\s'
 endfunction
@@ -582,6 +579,12 @@ function! s:CloseHiddenBuffers()
       exec "bdelete ".num
     endif
   endfor
+endfunction
+
+command! FreshStart call s:FreshStart()
+function! s:FreshStart()
+  call s:CloseHiddenBuffers()
+  call coc#rpc#restart()
 endfunction
 
 " Turn this into a plugin...

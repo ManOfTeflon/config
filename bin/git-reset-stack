@@ -1,8 +1,6 @@
 #!/bin/bash
 
-stack="$(cat "$1")"
+first="$1"
+rest=("${@:2}")
 
-first="$(head -n1 <(echo "${stack}"))"
-rest="$(tail -n+2 <(echo "${stack}"))"
-
-echo -n "${rest}" | awk '{ printf "update refs/heads/%s '"${first}"'~%s\n", $0, NR; }' | git update-ref -m 'stack reset' --stdin
+printf "%s\n" "${rest[@]}" | awk '{ printf "update refs/heads/%s '"${first}"'~%s\n", $0, NR; }' | git update-ref -m 'stack reset' --stdin

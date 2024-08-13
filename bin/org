@@ -1,6 +1,6 @@
 #!/bin/bash
 
-dir="$HOME/Shared/Notes"
+dir="$HOME/Notes"
 file="$(date +"$dir/%Y_%m_%d.org")"
 
 if [ ! -f "${file}" ]; then

@@ -33,7 +33,7 @@ alias egrep='egrep --color=auto '
 export EDITOR=nvim
 
 function ls() {
-    /usr/bin/env ls -lASh --color --group-directories-first "$@"
+    /usr/bin/env ls -lASh --color "$@"
 }
 
 alias sudo='sudo '
@@ -43,6 +43,8 @@ alias g='git'
 alias tmux='tmux -2 '
 alias vim='nvim '
 alias forget='ssh-keygen -f "/home/mandrews/.ssh/known_hosts" -R '
+
+setopt histignorespace
 
 touch ~/.localrc
 source ~/.localrc

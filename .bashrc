@@ -127,7 +127,6 @@ alias sudo='sudo '
 alias ns='netstat -lnutp'
 alias ssh='TERM=xterm-256color \ssh '
 alias g='git'
-alias tmux='tmux -2 '
 alias vim='nvim '
 alias h='history|grep'
 # if [ ! -d /tmp/vim ]; then

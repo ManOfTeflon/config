@@ -1,4 +1,5 @@
 {
+    "diagnostic.level": "warning",
     "languageserver": {
         "golang": {
             "command": "gopls",
@@ -13,11 +14,14 @@
             ]
         }
     },
-    "python.linting.pylintEnabled": false,
-    "python.linting.flake8Enabled": true,
-    "python.linting.flake8Path": "/home/mandrews/Projects/impira/opt/python/bin/flake8",
     "clangd.semanticHighlighting": true,
     "coc.preferences.formatOnSaveFiletypes": [
-        "rust"
-    ]
+        "rust",
+        "go"
+    ],
+
+    "codeLens.enable": true,
+    "typescript": {
+        "autoClosingTags": false
+    }
 }
